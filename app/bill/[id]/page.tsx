@@ -1,4 +1,5 @@
 "use client";
+import { readJson } from "@/app/components/api";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBill } from "@/app/components/useBill";
@@ -17,6 +18,40 @@ export default function LiveBill() {
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const wasSettled = useRef<boolean | null>(null);
   const [settledFresh, setSettledFresh] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const [soundError, setSoundError] = useState<string | null>(null);
+  const speechQueue = useRef<Promise<void>>(Promise.resolve());
+
+  /** Fetch an announcement from the server and play it after any that are already playing. */
+  function announce(kind: "paid" | "settled" | "test", name?: string) {
+    speechQueue.current = speechQueue.current.then(async () => {
+      try {
+        const res = await fetch("/api/announce", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ billId: id, kind, name }),
+        });
+        if (!res.ok) {
+          const msg = (await res.json().catch(() => null))?.error;
+          if (kind === "test") throw new Error(msg || "Couldn't turn on announcements.");
+          return;
+        }
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url);
+        await audio.play();
+        await new Promise<void>((done) => {
+          audio.onended = () => done();
+          audio.onerror = () => done();
+        });
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        if (kind === "test") {
+          setSoundOn(false);
+          setSoundError((e as Error).message);
+        }
+      }
+    });
+  }
 
   useEffect(() => {
     setJoinUrl(`${window.location.origin}/bill/${id}/claim`);
@@ -34,9 +69,13 @@ export default function LiveBill() {
     if (seenPaid.current) {
       const newly = [...paidNow].filter((n) => !seenPaid.current!.has(n));
       if (newly.length) setFresh(new Set(newly));
+      if (soundOn) newly.forEach((n) => announce("paid", n));
     }
     seenPaid.current = paidNow;
-    if (wasSettled.current === false && s.settled) setSettledFresh(true);
+    if (wasSettled.current === false && s.settled) {
+      setSettledFresh(true);
+      if (soundOn) announce("settled");
+    }
     wasSettled.current = s.settled;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -50,7 +89,7 @@ export default function LiveBill() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: hostToken, action, itemId }),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
+      await readJson(res);
       await refresh();
     } catch (e) {
       setActionError((e as Error).message);
@@ -64,6 +103,10 @@ export default function LiveBill() {
   const { bill, items, payments } = state;
   const host = bill.host_name;
   const isHostDevice = !!hostToken;
+  // Host controls lock once settled, and anything that changes guests' shares locks once someone pays.
+  const anyPaid = payments.some((p) => p.status === "paid");
+  const hostCanEdit = isHostDevice && !s.settled;
+  const sharesLocked = anyPaid;
   // Progress counts unclaimed items as still outstanding, so the bar can't hit 100% early.
   const outstanding = s.owedToHost + s.unassigned;
   const pct = outstanding > 0 ? Math.min(100, (s.collected / outstanding) * 100) : 0;
@@ -85,7 +128,7 @@ export default function LiveBill() {
                 const who = i.claimed_by
                   ? mine ? `${host} (host)` : i.claimed_by
                   : s.splitLeftovers ? "Split evenly" : "Unclaimed";
-                const canToggle = isHostDevice && (!i.claimed_by || mine);
+                const canToggle = hostCanEdit && !(sharesLocked && s.splitLeftovers) && (!i.claimed_by || mine);
                 const content = (
                   <>
                     <span className="name">
@@ -116,12 +159,29 @@ export default function LiveBill() {
               <div className="line total"><span>Total</span><span className="price">{money(s.total)}</span></div>
             </div>
           </div>
-          {isHostDevice && !s.settled && (
+          {hostCanEdit && !(sharesLocked && s.splitLeftovers) && (
             <p className="muted host-hint">You're the host. Tap the items you had yourself, they're already covered.</p>
           )}
         </div>
 
         <section>
+          <p className="sound-toggle">
+            {soundOn ? (
+              <button className="link" onClick={() => setSoundOn(false)}>🔊 Announcements on · turn off</button>
+            ) : (
+              <button
+                className="link"
+                onClick={() => {
+                  setSoundError(null);
+                  setSoundOn(true);
+                  announce("test");
+                }}
+              >
+                🔈 Turn on announcements
+              </button>
+            )}
+          </p>
+          {soundError && <p className="error" style={{ marginTop: 0 }}>{soundError}</p>}
           {s.settled ? (
             <div className="settled" aria-live="polite">
               <span className={`stamp big${settledFresh ? " fresh" : ""}`}>Settled</span>
@@ -157,9 +217,11 @@ export default function LiveBill() {
               <p style={{ margin: 0 }}>
                 <strong>{s.unclaimedCount} unclaimed {s.unclaimedCount === 1 ? "item" : "items"}</strong> ({money(s.unclaimedTotal)})
               </p>
-              {isHostDevice ? (
+              {hostCanEdit ? (
                 <div className="row">
-                  <button className="btn ghost small" onClick={() => hostAction("split-rest")} disabled={!!busy}>Split evenly</button>
+                  {!sharesLocked && (
+                    <button className="btn ghost small" onClick={() => hostAction("split-rest")} disabled={!!busy}>Split evenly</button>
+                  )}
                   <button className="btn ghost small" onClick={() => hostAction("cover-rest")} disabled={!!busy}>{s.unclaimedCount === 1 ? "I'll cover it" : "I'll cover them"}</button>
                 </div>
               ) : (
@@ -172,7 +234,7 @@ export default function LiveBill() {
               <p style={{ margin: 0 }}>
                 {money(s.unclaimedTotal)} of unclaimed items is split evenly between everyone.
               </p>
-              {isHostDevice && (
+              {hostCanEdit && !sharesLocked && (
                 <button className="link" onClick={() => hostAction("unsplit")} disabled={!!busy}>Undo</button>
               )}
             </div>

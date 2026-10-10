@@ -165,3 +165,8 @@ h2 { font-size: 1.35rem; letter-spacing: -0.02em; font-weight: 800; margin: 0 0 
 .btn.small { min-height: 2.4rem; padding: 0.45rem 1rem; font-size: 0.95rem; }
 .stamp.muted-stamp { color: var(--muted); border-color: #b9bfb9; background: transparent; }
 .host-hint { font-size: 0.9rem; margin: 1rem 0 0; max-width: 26rem; }
+
+/* Voice announcements toggle on the live bill */
+.sound-toggle { margin: 0 0 1rem; font-size: 0.9rem; }
+.sound-toggle .link { font-weight: 500; color: var(--muted); }
+.sound-toggle .link:hover { color: var(--ink); }
