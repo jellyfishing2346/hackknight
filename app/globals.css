@@ -28,7 +28,10 @@ button, input { font: inherit; color: inherit; }
 .page { max-width: 34rem; margin: 0 auto; padding: 2.5rem 1.25rem 7rem; }
 .wide { max-width: 64rem; }
 
-.brand { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; margin: 0 0 2rem; }
+.brand { display: inline-block; font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; margin: 0 0 2rem; color: var(--ink); text-decoration: none; }
+.brand-btn { background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); }
+.back-link { font-weight: 500; color: var(--muted); text-decoration: none; }
+.back-link:hover { color: var(--ink); }
 h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.02; letter-spacing: -0.035em; font-weight: 800; margin: 0 0 0.75rem; }
 h2 { font-size: 1.35rem; letter-spacing: -0.02em; font-weight: 800; margin: 0 0 0.75rem; }
 .lede { color: var(--muted); margin: 0 0 2rem; max-width: 30rem; }

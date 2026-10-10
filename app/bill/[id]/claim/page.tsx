@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { Brand } from "@/app/components/Brand";
 import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -171,7 +173,7 @@ export default function Claim() {
   if (!name) {
     return (
       <main className="page">
-        <p className="brand">Tabby</p>
+        <Brand />
         <h1>{bill.title}</h1>
         <p className="lede">{host} covered the bill. Add your name, tap what you ordered, and pay {host} back.</p>
         {confirmName ? (
@@ -244,7 +246,7 @@ export default function Claim() {
   if (settled && left <= 0) {
     return (
       <main className="page">
-        <p className="brand">Tabby</p>
+        <Brand />
         <div className="done" aria-live="polite">
           <span className="stamp big fresh">Paid</span>
           <p>You paid {host} back <strong>{money(me!.paid)}</strong> for {bill.title}. You're all square, {name}.</p>
@@ -256,6 +258,9 @@ export default function Claim() {
             </p>
           )}
           <p className="muted">Forgot something? Tap it below and pay the difference.</p>
+          <p>
+            <Link href="/" className="link">Split your own bill with Tabby →</Link>
+          </p>
         </div>
         {renderItems()}
         {actionError && <p className="error">{actionError}</p>}
@@ -265,7 +270,7 @@ export default function Claim() {
 
   return (
     <main className="page">
-      <p className="brand">Tabby</p>
+      <Brand />
       <h1 style={{ fontSize: "2rem" }}>Hi {name}, what did you order?</h1>
       <p className="lede" style={{ marginBottom: "1.5rem" }}>
         {host} covered the bill. Tap your items and pay {host} back.{" "}

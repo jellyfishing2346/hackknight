@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { Brand } from "@/app/components/Brand";
 import { readJson } from "@/app/components/api";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -113,7 +115,7 @@ export default function LiveBill() {
 
   return (
     <main className="page wide">
-      <p className="brand">Tabby</p>
+      <Brand />
       <div className="live">
         <div>
           <div className="receipt-wrap">
@@ -190,6 +192,7 @@ export default function LiveBill() {
                 <p className="muted" style={{ margin: 0 }}>
                   {money(s.collected)} from {s.guests.length} {s.guests.length === 1 ? "friend" : "friends"}, settled on Solana. Nobody has to chase anyone.
                 </p>
+                <Link href="/" className="btn small" style={{ marginTop: "1rem" }}>Start a new bill</Link>
               </div>
             </div>
           ) : (

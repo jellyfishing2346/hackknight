@@ -1,4 +1,5 @@
 "use client";
+import { Brand } from "@/app/components/Brand";
 import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -114,13 +115,25 @@ export default function Host() {
     }
   }
 
+  /** Back to a blank home screen, discarding the current receipt. */
+  function reset() {
+    setStage("pick");
+    setItems([]);
+    setPreview(null);
+    setError(null);
+    setSaving(false);
+  }
+
   const update = (i: number, patch: Partial<Draft>) =>
     setItems((list) => list.map((d, j) => (j === i ? { ...d, ...patch } : d)));
 
   if (stage === "review") {
     return (
       <main className="page">
-        <p className="brand">Tabby</p>
+        <Brand onHome={reset} />
+        <p style={{ margin: "0 0 0.75rem" }}>
+          <button className="link back-link" onClick={reset}>← Start over</button>
+        </p>
         <h1>Check the receipt</h1>
         <p className="lede">Fix anything that was misread, then share the bill with the table.</p>
 
@@ -201,7 +214,7 @@ export default function Host() {
 
   return (
     <main className="page">
-      <p className="brand">Tabby</p>
+      <Brand />
       <h1>Snap the receipt. Everyone pays their part.</h1>
       <p className="lede">Friends tap what they ordered and settle their share in about a second, no chasing anyone later.</p>
 
