@@ -334,7 +334,7 @@ export default function Host() {
         <h2 id="how-title">How it works</h2>
         <ol>
           <li><strong>Snap the receipt.</strong> Tabby reads every item, plus tax and tip.</li>
-          <li><strong>Friends scan your screen.</strong> They tap what they ate. No app needed.</li>
+          <li><strong>Friends scan your screen.</strong> They tap their share. No app needed.</li>
           <li><strong>Everyone pays you back.</strong> One tap each, and you watch it land.</li>
         </ol>
       </section>
