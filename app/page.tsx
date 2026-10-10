@@ -49,14 +49,22 @@ export default function Host() {
   const [hostWallet, setHostWallet] = useState("");
   const [splitMode, setSplitMode] = useState<"items" | "even">("items");
   const [people, setPeople] = useState(4);
+  const [walletMode, setWalletMode] = useState<"demo" | "own">("demo");
 
   // Remember the host's name and wallet for their next bill.
   useEffect(() => {
     try {
       setHostName(localStorage.getItem("tabby:hostName") ?? "");
-      setHostWallet(localStorage.getItem("tabby:hostWallet") ?? "");
+      const saved = localStorage.getItem("tabby:hostWallet") ?? "";
+      setHostWallet(saved);
+      if (saved) setWalletMode("own");
     } catch {}
   }, []);
+
+  function chooseWalletMode(mode: "demo" | "own") {
+    setWalletMode(mode);
+    if (mode === "demo") setHostWallet("");
+  }
 
   function load(r: ParsedReceipt) {
     setTitle(r.merchant || "Dinner");
@@ -233,24 +241,54 @@ export default function Host() {
             <input id="host" autoComplete="given-name" placeholder="e.g. Sam" value={hostName} onChange={(e) => setHostName(e.target.value)} />
             <span className="hint">Friends will see "Pay {hostName.trim() || "you"} back".</span>
           </div>
-          <details className="advanced">
-            <summary>Advanced: get paid to your own crypto wallet</summary>
-            <div className="field" style={{ marginTop: "0.75rem" }}>
-              <label htmlFor="wallet">Your Solana wallet address</label>
+          <div className="field">
+            <label id="wallet-label">Where should friends pay you back?</label>
+            <div className="row" role="radiogroup" aria-labelledby="wallet-label">
+              <button
+                type="button"
+                className={`btn small${walletMode === "demo" ? "" : " ghost"}`}
+                role="radio"
+                aria-checked={walletMode === "demo"}
+                onClick={() => chooseWalletMode("demo")}
+              >
+                Demo wallet
+              </button>
+              <button
+                type="button"
+                className={`btn small${walletMode === "own" ? "" : " ghost"}`}
+                role="radio"
+                aria-checked={walletMode === "own"}
+                onClick={() => chooseWalletMode("own")}
+              >
+                My Solana wallet
+              </button>
+            </div>
+            {walletMode === "own" && (
               <input
                 id="wallet"
                 className="mono"
-                placeholder="Leave blank to use the demo wallet"
+                placeholder="Your Solana address"
                 value={hostWallet}
                 onChange={(e) => setHostWallet(e.target.value)}
                 spellCheck={false}
                 autoCapitalize="off"
+                autoFocus
+                style={{ marginTop: "0.5rem" }}
               />
-            </div>
-          </details>
+            )}
+            <span className="hint">
+              {walletMode === "demo"
+                ? "Friends' repayments go to the team's shared demo wallet."
+                : "Friends' repayments go straight to this address."}
+            </span>
+          </div>
         </div>
 
-        <button className="btn block big" onClick={start} disabled={saving || items.length === 0 || !hostName.trim()}>
+        <button
+          className="btn block big"
+          onClick={start}
+          disabled={saving || items.length === 0 || !hostName.trim() || (walletMode === "own" && !hostWallet.trim())}
+        >
           {saving ? "Creating your bill…" : hostName.trim() ? "Share with the table →" : "Add your name to continue"}
         </button>
         {error && <p className="error">{error}</p>}
@@ -296,7 +334,7 @@ export default function Host() {
         <h2 id="how-title">How it works</h2>
         <ol>
           <li><strong>Snap the receipt.</strong> Tabby reads every item, plus tax and tip.</li>
-          <li><strong>Friends scan your screen.</strong> They tap what they ate. No app needed.</li>
+          <li><strong>Friends scan your screen.</strong> They tap their share. No app needed.</li>
           <li><strong>Everyone pays you back.</strong> One tap each, and you watch it land.</li>
         </ol>
       </section>
