@@ -4,3 +4,8 @@ node_modules
 .devnet-admin.json
 next-env.d.ts
 *.tsbuildinfo
+.venv/
+__pycache__/
+.pytest_cache/
+.gitignore
+CLAUDE.md
