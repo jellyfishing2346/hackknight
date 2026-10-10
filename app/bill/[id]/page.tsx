@@ -1,99 +1,336 @@
 "use client";
+import Link from "next/link";
+import { Brand } from "@/app/components/Brand";
+import { Steps } from "@/app/components/Steps";
+import { readJson } from "@/app/components/api";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
-import { billTotal, money, people } from "@/lib/split";
+import { explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
 
-/** The laptop screen in the middle of the table. */
+/** The laptop screen in the middle of the table. The host's device also gets host controls. */
 export default function LiveBill() {
   const { id } = useParams<{ id: string }>();
-  const { state, error } = useBill(id);
+  const { state, error, refresh } = useBill(id);
   const [joinUrl, setJoinUrl] = useState("");
+  const [hostToken, setHostToken] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const seenPaid = useRef<Set<string> | null>(null);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const wasSettled = useRef<boolean | null>(null);
+  const [settledFresh, setSettledFresh] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const [soundError, setSoundError] = useState<string | null>(null);
+  const speechQueue = useRef<Promise<void>>(Promise.resolve());
 
-  useEffect(() => setJoinUrl(`${window.location.origin}/bill/${id}/claim`), [id]);
+  /** Fetch an announcement from the server and play it after any that are already playing. */
+  function announce(kind: "paid" | "settled" | "test", name?: string) {
+    speechQueue.current = speechQueue.current.then(async () => {
+      try {
+        const res = await fetch("/api/announce", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ billId: id, kind, name }),
+        });
+        if (!res.ok) {
+          const msg = (await res.json().catch(() => null))?.error;
+          if (kind === "test") throw new Error(msg || "Couldn't turn on announcements.");
+          return;
+        }
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url);
+        await audio.play();
+        await new Promise<void>((done) => {
+          audio.onended = () => done();
+          audio.onerror = () => done();
+        });
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        if (kind === "test") {
+          setSoundOn(false);
+          setSoundError((e as Error).message);
+        }
+      }
+    });
+  }
 
-  const list = state ? people(state.bill, state.items, state.payments) : [];
-
-  // Stamp animation only for people who just settled, not on first load.
   useEffect(() => {
-    if (!state) return;
-    const settled = new Set(list.filter((p) => p.settled).map((p) => p.name));
+    setJoinUrl(`${window.location.origin}/bill/${id}/claim`);
+    try {
+      setHostToken(localStorage.getItem(`tabby:host:${id}`));
+    } catch {}
+  }, [id]);
+
+  const s = state ? split(state.bill, state.items, state.payments) : null;
+
+  // Stamp animations only for changes that happen live, not on first load.
+  useEffect(() => {
+    if (!s) return;
+    const paidNow = new Set(s.guests.filter((g) => g.settled && g.owed > 0).map((g) => g.name));
     if (seenPaid.current) {
-      const newly = [...settled].filter((n) => !seenPaid.current!.has(n));
+      const newly = [...paidNow].filter((n) => !seenPaid.current!.has(n));
       if (newly.length) setFresh(new Set(newly));
+      if (soundOn) newly.forEach((n) => announce("paid", n));
     }
-    seenPaid.current = settled;
+    seenPaid.current = paidNow;
+    if (wasSettled.current === false && s.settled) {
+      setSettledFresh(true);
+      if (soundOn) announce("settled");
+    }
+    wasSettled.current = s.settled;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  if (!state) return <main className="page"><p className={error ? "error" : "muted"}>{error ?? "Loading bill…"}</p></main>;
+  async function hostAction(action: string, itemId?: string, count?: number | null) {
+    setBusy(itemId ?? action);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/bills/${id}/host`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: hostToken, action, itemId, count }),
+      });
+      await readJson(res);
+      await refresh();
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
 
-  const { bill, items } = state;
-  const total = billTotal(bill, items);
-  const collected = list.reduce((s, p) => s + Math.min(p.paid, p.owed), 0);
-  const pct = total > 0 ? Math.min(100, (collected / total) * 100) : 0;
-  const unclaimed = items.filter((i) => !i.claimed_by).length;
+  if (!state || !s) return <main className="page"><p className={error ? "error" : "muted"}>{error ?? "Loading bill…"}</p></main>;
+
+  const { bill, items, payments } = state;
+  const host = bill.host_name;
+  const isHostDevice = !!hostToken;
+  // Host controls lock once settled, and anything that changes guests' shares locks once someone pays.
+  const anyPaid = payments.some((p) => p.status === "paid");
+  const hostCanEdit = isHostDevice && !s.settled;
+  const sharesLocked = anyPaid;
+  // Progress counts unclaimed items as still outstanding, so the bar can't hit 100% early.
+  const outstanding = s.owedToHost + s.unassigned;
+  const pct = outstanding > 0 ? Math.min(100, (s.collected / outstanding) * 100) : 0;
 
   return (
     <main className="page wide">
-      <p className="brand">Tabby</p>
+      <Brand />
+      {isHostDevice && !s.settled && <Steps steps={["Snap", "Check", "Share"]} current={2} />}
       <div className="live">
-        <div className="receipt-wrap">
-          <div className="receipt">
-            <p className="receipt-title">{bill.title}</p>
-            <p className="receipt-sub">{new Date(bill.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p>
-            <hr className="rule" />
-            {items.map((i) => (
-              <div className="line" key={i.id}>
-                <span className="name">
-                  {i.name}
-                  <span className="who">{i.claimed_by ?? "Unclaimed"}</span>
-                </span>
-                <span className="price">{money(i.price)}</span>
-              </div>
-            ))}
-            <hr className="rule" />
-            <div className="line"><span>Tax</span><span className="price">{money(bill.tax)}</span></div>
-            <div className="line"><span>Tip</span><span className="price">{money(bill.tip)}</span></div>
-            <hr className="rule" />
-            <div className="line total"><span>Total</span><span className="price">{money(total)}</span></div>
+        <div>
+          <div className="receipt-wrap">
+            <div className="receipt">
+              <p className="receipt-title">{bill.title}</p>
+              <p className="receipt-sub">
+                Paid by {host} · {new Date(bill.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+              </p>
+              <hr className="rule" />
+              {items.map((i) => {
+                const mine = hasClaimed(i, host);
+                const names = i.claimers.map((c) => (sameName(c, host) ? `${host} (host)` : c));
+                const who = s.evenSplit
+                  ? "Split evenly"
+                  : i.claimers.length === 0
+                    ? s.splitLeftovers ? "Split evenly" : "Unclaimed"
+                    : i.claimers.length > 1
+                      ? `${names.join(" + ")} · split ${i.claimers.length} ways`
+                      : names[0];
+                // The host can join any item they had, unless that would change a share someone already paid.
+                const paidSharer = i.claimers.some(
+                  (c) => !sameName(c, host) && payments.some((p) => sameName(p.payer_name, c) && p.status === "paid"),
+                );
+                const canToggle = hostCanEdit && !s.evenSplit && !(sharesLocked && s.splitLeftovers) && !paidSharer;
+                const content = (
+                  <>
+                    <span className="name">
+                      {i.name}
+                      <span className="who">{who}</span>
+                    </span>
+                    <span className="price">{money(i.price)}</span>
+                  </>
+                );
+                return canToggle ? (
+                  <button
+                    key={i.id}
+                    className={`claim-line line${mine ? " mine" : ""}`}
+                    aria-pressed={mine}
+                    disabled={busy === i.id}
+                    onClick={() => hostAction(mine ? "release-item" : "claim-item", i.id)}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div className="line" key={i.id}>{content}</div>
+                );
+              })}
+              <hr className="rule" />
+              <div className="line"><span>Tax</span><span className="price">{money(bill.tax)}</span></div>
+              <div className="line"><span>Tip</span><span className="price">{money(bill.tip)}</span></div>
+              <hr className="rule" />
+              <div className="line total"><span>Total</span><span className="price">{money(s.total)}</span></div>
+            </div>
           </div>
+          {hostCanEdit && !s.evenSplit && !(sharesLocked && s.splitLeftovers) && (
+            <p className="callout">👆 <strong>You're the host.</strong> Tap anything you ate or shared. Your part is already covered, so you won't pay for it.</p>
+          )}
         </div>
 
         <section>
-          <div className="join">
-            {joinUrl && <QR value={joinUrl} alt="QR code to join this bill" />}
-            <div>
-              <h2>Scan to claim your items</h2>
-              <p className="muted" style={{ margin: 0 }}>
-                {unclaimed === 0 ? "Every item is claimed." : `${unclaimed} item${unclaimed === 1 ? "" : "s"} still unclaimed.`}
-              </p>
+          <p className="sound-toggle">
+            {soundOn ? (
+              <button className="btn ghost small" onClick={() => setSoundOn(false)}>🔊 Reading payments aloud · Turn off</button>
+            ) : (
+              <button
+                className="btn ghost small"
+                onClick={() => {
+                  setSoundError(null);
+                  setSoundOn(true);
+                  announce("test");
+                }}
+              >
+                🔈 Read payments out loud
+              </button>
+            )}
+          </p>
+          {soundError && <p className="error" style={{ marginTop: 0 }}>{soundError}</p>}
+          {s.settled ? (
+            <div className="settled" aria-live="polite">
+              <span className={`stamp big${settledFresh ? " fresh" : ""}`}>Settled</span>
+              <div>
+                <h2>{host} is paid back.</h2>
+                <p className="muted" style={{ margin: 0 }}>
+                  {money(s.collected)} from {s.guests.length} {s.guests.length === 1 ? "friend" : "friends"}, settled on Solana. Nobody has to chase anyone.
+                </p>
+                <Link href="/" className="btn small" style={{ marginTop: "1rem" }}>Start a new bill</Link>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="join">
+              {joinUrl && <QR value={joinUrl} alt="QR code to join this bill" />}
+              <div>
+                <h2>Friends: scan this to pay {host} back</h2>
+                <ol className="mini-steps">
+                  <li>Open your phone's camera and point it here</li>
+                  <li>{s.evenSplit ? "Enter your name" : "Tap the food you ordered (shared dishes too)"}</li>
+                  <li>Tap <strong>Pay {host} back</strong></li>
+                </ol>
+                <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>
+              </div>
+            </div>
+          )}
 
-          <h2 style={{ marginBottom: 0 }}>{money(collected)} of {money(total)} collected</h2>
+          <h2 style={{ marginBottom: "0.2rem" }}>{host} fronted {money(s.total)}</h2>
+          {s.evenSplit && (
+            <p style={{ margin: "0 0 0.2rem" }}>
+              Split evenly {s.evenSplit} ways: <strong>{money(s.evenShare ?? 0)}</strong> each
+            </p>
+          )}
+          <p className="muted" style={{ margin: 0 }}>
+            {money(s.collected)} paid back
+            {s.toGo > 0 ? ` · ${money(s.toGo)} to go` : ""}
+            {s.unassigned > 0 ? ` · ${money(s.unassigned)} unclaimed` : ""}
+          </p>
           <div className="progress" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${pct}%` }} />
           </div>
 
-          {list.length === 0 && <p className="muted">Nobody has joined yet.</p>}
-          <div aria-live="polite">
-            {list.map((p) => (
-              <div className="person" key={p.name}>
-                <span className="person-name">{p.name}</span>
-                <span className="row">
-                  <span className="person-amt">{money(p.owed)}</span>
-                  {p.settled ? (
-                    <span className={`stamp${fresh.has(p.name) ? " fresh" : ""}`}>Paid</span>
-                  ) : (
-                    <span className="muted" style={{ fontSize: "0.9rem" }}>{p.paid > 0 ? `${money(p.owed - p.paid)} left` : "Not paid"}</span>
+          {hostCanEdit && !anyPaid && (
+            <div className="mode-row">
+              {s.evenSplit ? (
+                <>
+                  <span>Split evenly between</span>
+                  <div className="stepper">
+                    <button type="button" aria-label="Fewer people" disabled={!!busy || s.evenSplit <= 2} onClick={() => hostAction("set-even", undefined, s.evenSplit! - 1)}>−</button>
+                    <span>{s.evenSplit}</span>
+                    <button type="button" aria-label="More people" disabled={!!busy} onClick={() => hostAction("set-even", undefined, s.evenSplit! + 1)}>+</button>
+                  </div>
+                  <span>people</span>
+                  <button className="link" disabled={!!busy} onClick={() => hostAction("set-even", undefined, null)}>Split by items instead</button>
+                </>
+              ) : (
+                <>
+                  <span>Everyone pays for what they ordered.</span>
+                  <button className="link" disabled={!!busy} onClick={() => hostAction("set-even", undefined, Math.max(2, s.guests.length + 1))}>
+                    Split evenly instead
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {s.unclaimedCount > 0 && !s.splitLeftovers && s.guests.length > 0 && (
+            <div className="leftovers">
+              <p style={{ margin: 0 }}>
+                <strong>{s.unclaimedCount} {s.unclaimedCount === 1 ? "item nobody has claimed" : "items nobody has claimed"}</strong> ({money(s.unclaimedTotal)})
+              </p>
+              {hostCanEdit && <p className="muted" style={{ margin: 0, fontSize: "0.85rem", flexBasis: "100%" }}>Shared something? Split it between everyone, or pay for it yourself.</p>}
+              {hostCanEdit ? (
+                <div className="row">
+                  {!sharesLocked && (
+                    <button className="btn ghost small" onClick={() => hostAction("split-rest")} disabled={!!busy}>Split evenly</button>
                   )}
-                </span>
-              </div>
-            ))}
+                  <button className="btn ghost small" onClick={() => hostAction("cover-rest")} disabled={!!busy}>{s.unclaimedCount === 1 ? "I'll cover it" : "I'll cover them"}</button>
+                </div>
+              ) : (
+                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>Claim them, or {host} can split or cover them.</p>
+              )}
+            </div>
+          )}
+          {s.splitLeftovers && (
+            <div className="leftovers">
+              <p style={{ margin: 0 }}>
+                {money(s.unclaimedTotal)} of unclaimed items is split evenly between everyone.
+              </p>
+              {hostCanEdit && !sharesLocked && (
+                <button className="link" onClick={() => hostAction("unsplit")} disabled={!!busy}>Undo</button>
+              )}
+            </div>
+          )}
+          {actionError && <p className="error">{actionError}</p>}
+
+          <div aria-live="polite">
+            <div className="person">
+              <span>
+                <span className="person-name">{host}</span>
+                <span className="chain-link">Paid the restaurant</span>
+              </span>
+              <span className="row">
+                {s.hostShare > 0 ? (
+                  <span className="person-amt">
+                    {money(s.hostShare)} <span className="amt-note">own share</span>
+                  </span>
+                ) : (
+                  <span className="muted" style={{ fontSize: "0.9rem" }}>Hasn't picked their food yet</span>
+                )}
+                <span className="host-tag">Host</span>
+              </span>
+            </div>
+            {s.guests.length === 0 && <p className="muted waiting"><span className="spinner small" aria-hidden="true" /> Waiting for friends to scan the code…</p>}
+            {s.guests.map((g) => {
+              const sig = g.settled && g.owed > 0 ? latestSignature(g.name, payments) : null;
+              return (
+                <div className="person" key={g.name}>
+                  <span>
+                    <span className="person-name">{g.name}</span>
+                    {sig && (
+                      <a className="chain-link" href={explorerTx(sig)} target="_blank" rel="noreferrer">
+                        See proof of payment ↗
+                      </a>
+                    )}
+                  </span>
+                  <span className="row">
+                    <span className="person-amt">{money(g.owed)}</span>
+                    {g.settled && g.owed > 0 ? (
+                      <span className={`stamp${fresh.has(g.name) ? " fresh" : ""}`}>Paid</span>
+                    ) : (
+                      <span className="muted" style={{ fontSize: "0.9rem" }}>{g.paid > 0 ? `${money(g.owed - g.paid)} left` : "Not paid"}</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </section>
       </div>

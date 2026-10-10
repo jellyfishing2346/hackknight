@@ -1,10 +1,15 @@
 "use client";
-import { useState } from "react";
+import { Brand } from "@/app/components/Brand";
+import { Steps } from "@/app/components/Steps";
+import { readJson } from "@/app/components/api";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money, round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
 
 type Draft = { name: string; price: string };
+
+const HOST_STEPS = ["Snap", "Check", "Share"];
 
 const SAMPLE: ParsedReceipt = {
   merchant: "Sample receipt",
@@ -40,6 +45,26 @@ export default function Host() {
   const [tip, setTip] = useState("0");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hostName, setHostName] = useState("");
+  const [hostWallet, setHostWallet] = useState("");
+  const [splitMode, setSplitMode] = useState<"items" | "even">("items");
+  const [people, setPeople] = useState(4);
+  const [walletMode, setWalletMode] = useState<"demo" | "own">("demo");
+
+  // Remember the host's name and wallet for their next bill.
+  useEffect(() => {
+    try {
+      setHostName(localStorage.getItem("tabby:hostName") ?? "");
+      const saved = localStorage.getItem("tabby:hostWallet") ?? "";
+      setHostWallet(saved);
+      if (saved) setWalletMode("own");
+    } catch {}
+  }, []);
+
+  function chooseWalletMode(mode: "demo" | "own") {
+    setWalletMode(mode);
+    if (mode === "demo") setHostWallet("");
+  }
 
   function load(r: ParsedReceipt) {
     setTitle(r.merchant || "Dinner");
@@ -61,8 +86,7 @@ export default function Host() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image, mimeType: "image/jpeg" }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await readJson<any>(res);
       load(data);
     } catch (e) {
       setError((e as Error).message || "Couldn't read the receipt.");
@@ -86,15 +110,32 @@ export default function Host() {
           tax: num(tax),
           tip: num(tip),
           items: items.filter((i) => i.name.trim()).map((i) => ({ name: i.name, price: num(i.price) })),
+          hostName,
+          hostWallet,
+          evenSplit: splitMode === "even" ? people : null,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await readJson<any>(res);
+      try {
+        // The host token unlocks the host's controls on this device only.
+        localStorage.setItem(`tabby:host:${data.id}`, data.hostToken);
+        localStorage.setItem("tabby:hostName", hostName.trim());
+        localStorage.setItem("tabby:hostWallet", hostWallet.trim());
+      } catch {}
       router.push(`/bill/${data.id}`);
     } catch (e) {
       setError((e as Error).message);
       setSaving(false);
     }
+  }
+
+  /** Back to a blank home screen, discarding the current receipt. */
+  function reset() {
+    setStage("pick");
+    setItems([]);
+    setPreview(null);
+    setError(null);
+    setSaving(false);
   }
 
   const update = (i: number, patch: Partial<Draft>) =>
@@ -103,9 +144,13 @@ export default function Host() {
   if (stage === "review") {
     return (
       <main className="page">
-        <p className="brand">Tabby</p>
+        <Brand onHome={reset} />
+        <p style={{ margin: "0 0 0.75rem" }}>
+          <button className="link back-link" onClick={reset}>← Start over</button>
+        </p>
+        <Steps steps={HOST_STEPS} current={1} />
         <h1>Check the receipt</h1>
-        <p className="lede">Fix anything that was misread, then share the bill with the table.</p>
+        <p className="lede">Tap any line to fix it. Make sure the total matches your paper receipt.</p>
 
         <div className="receipt-wrap">
           <div className="receipt">
@@ -133,7 +178,7 @@ export default function Host() {
               </div>
             ))}
             <p style={{ margin: "0.75rem 0 0" }}>
-              <button className="link" onClick={() => setItems((l) => [...l, { name: "", price: "" }])}>Add item</button>
+              <button className="btn ghost small" onClick={() => setItems((l) => [...l, { name: "", price: "" }])}>+ Add an item</button>
             </p>
             <hr className="rule" />
             <div className="edit-line">
@@ -154,9 +199,97 @@ export default function Host() {
           </div>
         </div>
 
-        <div className="spacer" />
-        <button className="btn block" onClick={start} disabled={saving || items.length === 0}>
-          {saving ? "Creating bill…" : "Share with the table"}
+        <div className="host-card">
+          <div className="field">
+            <span className="field-label">How should everyone split it?</span>
+            <div className="choice" role="radiogroup" aria-label="How to split the bill">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={splitMode === "items"}
+                className={`choice-opt${splitMode === "items" ? " on" : ""}`}
+                onClick={() => setSplitMode("items")}
+              >
+                <strong>By what each person ordered</strong>
+                <span>Friends tap their own food. Shared dishes split between whoever had them.</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={splitMode === "even"}
+                className={`choice-opt${splitMode === "even" ? " on" : ""}`}
+                onClick={() => setSplitMode("even")}
+              >
+                <strong>Split evenly</strong>
+                <span>Everyone pays the same share. No picking needed.</span>
+              </button>
+            </div>
+            {splitMode === "even" && (
+              <div className="stepper-row">
+                <span>Number of people, including you</span>
+                <div className="stepper">
+                  <button type="button" aria-label="Fewer people" onClick={() => setPeople((n) => Math.max(2, n - 1))} disabled={people <= 2}>−</button>
+                  <span aria-live="polite">{people}</span>
+                  <button type="button" aria-label="More people" onClick={() => setPeople((n) => Math.min(50, n + 1))}>+</button>
+                </div>
+                <span className="hint">Each person pays {money(round2(total / people))}.</span>
+              </div>
+            )}
+          </div>
+          <div className="field">
+            <label htmlFor="host">You paid the bill. What's your name?</label>
+            <input id="host" autoComplete="given-name" placeholder="e.g. Sam" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+            <span className="hint">Friends will see "Pay {hostName.trim() || "you"} back".</span>
+          </div>
+          <div className="field">
+            <label id="wallet-label">Where should friends pay you back?</label>
+            <div className="row" role="radiogroup" aria-labelledby="wallet-label">
+              <button
+                type="button"
+                className={`btn small${walletMode === "demo" ? "" : " ghost"}`}
+                role="radio"
+                aria-checked={walletMode === "demo"}
+                onClick={() => chooseWalletMode("demo")}
+              >
+                Demo wallet
+              </button>
+              <button
+                type="button"
+                className={`btn small${walletMode === "own" ? "" : " ghost"}`}
+                role="radio"
+                aria-checked={walletMode === "own"}
+                onClick={() => chooseWalletMode("own")}
+              >
+                My Solana wallet
+              </button>
+            </div>
+            {walletMode === "own" && (
+              <input
+                id="wallet"
+                className="mono"
+                placeholder="Your Solana address"
+                value={hostWallet}
+                onChange={(e) => setHostWallet(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoFocus
+                style={{ marginTop: "0.5rem" }}
+              />
+            )}
+            <span className="hint">
+              {walletMode === "demo"
+                ? "Friends' repayments go to the team's shared demo wallet."
+                : "Friends' repayments go straight to this address."}
+            </span>
+          </div>
+        </div>
+
+        <button
+          className="btn block big"
+          onClick={start}
+          disabled={saving || items.length === 0 || !hostName.trim() || (walletMode === "own" && !hostWallet.trim())}
+        >
+          {saving ? "Creating your bill…" : hostName.trim() ? "Share with the table →" : "Add your name to continue"}
         </button>
         {error && <p className="error">{error}</p>}
       </main>
@@ -165,31 +298,46 @@ export default function Host() {
 
   return (
     <main className="page">
-      <p className="brand">Tabby</p>
+      <Brand />
+      <Steps steps={HOST_STEPS} current={0} />
       <h1>Snap the receipt. Everyone pays their part.</h1>
-      <p className="lede">Friends tap what they ordered and settle their share in about a second, no chasing anyone later.</p>
+      <p className="lede">You paid the bill? Friends tap what they ordered and pay you back in seconds. No math, no chasing.</p>
 
       {stage === "reading" ? (
         <div className="drop" aria-live="polite">
           {preview && <img className="preview" src={preview} alt="Your receipt" />}
-          <strong>Reading the receipt…</strong>
+          <span className="spinner" aria-hidden="true" />
+          <strong>Reading your receipt…</strong>
+          <span className="muted">This takes a few seconds.</span>
         </div>
       ) : (
         <label className="drop">
+          <span className="drop-icon" aria-hidden="true">📷</span>
           <strong>Take a photo of the receipt</strong>
           <span className="muted">or choose one from your photos</span>
+          <span className="btn small" aria-hidden="true">Choose photo</span>
           <input type="file" accept="image/*" capture="environment" onChange={(e) => onPhoto(e.target.files?.[0])} />
         </label>
       )}
       {error && <p className="error">{error}</p>}
 
       <div className="spacer" />
+      <p className="muted" style={{ margin: "0 0 0.6rem", fontSize: "0.9rem" }}>No receipt handy?</p>
       <div className="row">
         <button className="btn ghost" onClick={() => load({ merchant: "Dinner", items: [{ name: "", price: 0 }], tax: 0, tip: 0 })}>
-          Type it in instead
+          Type it in
         </button>
-        <button className="link" onClick={() => load(SAMPLE)}>Use a sample receipt</button>
+        <button className="btn ghost" onClick={() => load(SAMPLE)}>Try a sample receipt</button>
       </div>
+
+      <section className="how" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <ol>
+          <li><strong>Snap the receipt.</strong> Tabby reads every item, plus tax and tip.</li>
+          <li><strong>Friends scan your screen.</strong> They tap their share. No app needed.</li>
+          <li><strong>Everyone pays you back.</strong> One tap each, and you watch it land.</li>
+        </ol>
+      </section>
     </main>
   );
 }

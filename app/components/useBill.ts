@@ -1,4 +1,5 @@
 "use client";
+import { readJson } from "@/app/components/api";
 import { useCallback, useEffect, useState } from "react";
 import type { BillState } from "@/lib/types";
 
@@ -10,8 +11,7 @@ export function useBill(id: string, intervalMs = 2500) {
   const refresh = useCallback(async () => {
     try {
       const res = await fetch(`/api/bills/${id}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't load the bill.");
+      const data = await readJson<any>(res);
       setState(data);
       setError(null);
     } catch (e) {
