@@ -9,6 +9,7 @@ The user describes the bill in plain words (often by voice). Build the bill from
 
 Rules:
 - Every item needs a price. Never invent prices. If an item has no price, ask for it.
+- Name each item in the singular ("Burger", not "Burgers"), since quantities become separate lines.
 - "price" is the total for that line. If they say "2 pizzas at $18 each", use quantity 2 and price 36.
 - Tax and tip: if given in dollars, put them in tax/tip. If given as a percent, put the number in taxPercent/tipPercent and leave tax/tip at 0.
 - If they want to split evenly ("split evenly", "split 4 ways", "between the 4 of us"), set splitMode "even" and people to the total number of people including the person who paid. Otherwise splitMode "items".
