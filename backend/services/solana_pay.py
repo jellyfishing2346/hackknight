@@ -62,3 +62,18 @@ def find_signature(reference):
     if not signatures:
         return None
     return signatures[0]["signature"]
+
+def tokens_received(tx, recipient, mint):
+    meta = tx["meta"]
+
+    def sum_balances(balances):
+        total = 0
+        for entry in balances:
+            if entry["owner"] == recipient and entry["mint"] == mint:
+                total += int(entry["uiTokenAmount"]["amount"])
+        return total
+
+    post = sum_balances(meta["postTokenBalances"])
+    pre = sum_balances(meta.get("preTokenBalances", []))
+    return post - pre
+
