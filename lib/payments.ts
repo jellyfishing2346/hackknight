@@ -19,7 +19,15 @@ export async function preparePayment(billId: string, name: string): Promise<Prep
     return { ok: false, status: 400, error: `${state.bill.host_name} paid the bill, so there's nothing to pay back.` };
   }
 
-  const amount = amountLeft(split(state.bill, state.items, state.payments), name);
+  const s = split(state.bill, state.items, state.payments);
+  // Splitting evenly: once every share is paid, nobody else should pay.
+  if (s.evenSplit && !s.guests.some((g) => sameName(g.name, name))) {
+    const paidGuests = s.guests.filter((g) => g.paid >= (s.evenShare ?? 0) - 0.005).length;
+    if (paidGuests >= s.evenSplit - 1) {
+      return { ok: false, status: 409, error: `All ${s.evenSplit - 1} shares are already paid. ${state.bill.host_name} is all square!` };
+    }
+  }
+  const amount = amountLeft(s, name);
   if (amount <= 0) return { ok: false, status: 400, error: "Nothing left to pay. Tap the items you ordered." };
 
   const recipient = recipientFor(state.bill);

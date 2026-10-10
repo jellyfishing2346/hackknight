@@ -9,7 +9,7 @@ const num = (v: unknown) => Number(v ?? 0);
 export async function loadBill(id: string): Promise<BillState | null> {
   const supa = db();
   const [{ data: bill, error: billError }, { data: items, error: itemsError }, { data: payments, error: paymentsError }] = await Promise.all([
-    supa.from("bills").select("id, title, tax, tip, host_name, host_wallet, split_leftovers, created_at").eq("id", id).maybeSingle(),
+    supa.from("bills").select("id, title, tax, tip, host_name, host_wallet, split_leftovers, even_split, created_at").eq("id", id).maybeSingle(),
     supa.from("items").select("*").eq("bill_id", id).order("position"),
     supa.from("payments").select("*").eq("bill_id", id).order("created_at"),
   ]);
@@ -24,8 +24,14 @@ export async function loadBill(id: string): Promise<BillState | null> {
   }
   if (!bill) return null;
   return {
-    bill: { ...bill, tax: num(bill.tax), tip: num(bill.tip), split_leftovers: !!bill.split_leftovers } as Bill,
-    items: (items ?? []).map((i) => ({ ...i, price: num(i.price) })) as Item[],
+    bill: {
+      ...bill,
+      tax: num(bill.tax),
+      tip: num(bill.tip),
+      split_leftovers: !!bill.split_leftovers,
+      even_split: bill.even_split ? Number(bill.even_split) : null,
+    } as Bill,
+    items: (items ?? []).map((i) => ({ ...i, price: num(i.price), claimers: (i.claimers ?? []) as string[] })) as Item[],
     payments: (payments ?? []).map((p) => ({ ...p, amount: num(p.amount) })) as Payment[],
   };
 }

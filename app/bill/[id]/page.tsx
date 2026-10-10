@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
-import { explorerTx, latestSignature, money, sameName, split } from "@/lib/split";
+import { explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
 
 /** The laptop screen in the middle of the table. The host's device also gets host controls. */
 export default function LiveBill() {
@@ -83,14 +83,14 @@ export default function LiveBill() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  async function hostAction(action: string, itemId?: string) {
+  async function hostAction(action: string, itemId?: string, count?: number | null) {
     setBusy(itemId ?? action);
     setActionError(null);
     try {
       const res = await fetch(`/api/bills/${id}/host`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: hostToken, action, itemId }),
+        body: JSON.stringify({ token: hostToken, action, itemId, count }),
       });
       await readJson(res);
       await refresh();
@@ -128,11 +128,20 @@ export default function LiveBill() {
               </p>
               <hr className="rule" />
               {items.map((i) => {
-                const mine = sameName(i.claimed_by, host);
-                const who = i.claimed_by
-                  ? mine ? `${host} (host)` : i.claimed_by
-                  : s.splitLeftovers ? "Split evenly" : "Unclaimed";
-                const canToggle = hostCanEdit && !(sharesLocked && s.splitLeftovers) && (!i.claimed_by || mine);
+                const mine = hasClaimed(i, host);
+                const names = i.claimers.map((c) => (sameName(c, host) ? `${host} (host)` : c));
+                const who = s.evenSplit
+                  ? "Split evenly"
+                  : i.claimers.length === 0
+                    ? s.splitLeftovers ? "Split evenly" : "Unclaimed"
+                    : i.claimers.length > 1
+                      ? `${names.join(" + ")} · split ${i.claimers.length} ways`
+                      : names[0];
+                // The host can join any item they had, unless that would change a share someone already paid.
+                const paidSharer = i.claimers.some(
+                  (c) => !sameName(c, host) && payments.some((p) => sameName(p.payer_name, c) && p.status === "paid"),
+                );
+                const canToggle = hostCanEdit && !s.evenSplit && !(sharesLocked && s.splitLeftovers) && !paidSharer;
                 const content = (
                   <>
                     <span className="name">
@@ -163,8 +172,8 @@ export default function LiveBill() {
               <div className="line total"><span>Total</span><span className="price">{money(s.total)}</span></div>
             </div>
           </div>
-          {hostCanEdit && !(sharesLocked && s.splitLeftovers) && (
-            <p className="callout">👆 <strong>You're the host.</strong> Tap anything you ate yourself. It's already covered, so you won't pay for it.</p>
+          {hostCanEdit && !s.evenSplit && !(sharesLocked && s.splitLeftovers) && (
+            <p className="callout">👆 <strong>You're the host.</strong> Tap anything you ate or shared. Your part is already covered, so you won't pay for it.</p>
           )}
         </div>
 
@@ -204,7 +213,7 @@ export default function LiveBill() {
                 <h2>Friends: scan this to pay {host} back</h2>
                 <ol className="mini-steps">
                   <li>Open your phone's camera and point it here</li>
-                  <li>Tap the food you ordered</li>
+                  <li>{s.evenSplit ? "Enter your name" : "Tap the food you ordered (shared dishes too)"}</li>
                   <li>Tap <strong>Pay {host} back</strong></li>
                 </ol>
                 <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>
@@ -213,6 +222,11 @@ export default function LiveBill() {
           )}
 
           <h2 style={{ marginBottom: "0.2rem" }}>{host} fronted {money(s.total)}</h2>
+          {s.evenSplit && (
+            <p style={{ margin: "0 0 0.2rem" }}>
+              Split evenly {s.evenSplit} ways: <strong>{money(s.evenShare ?? 0)}</strong> each
+            </p>
+          )}
           <p className="muted" style={{ margin: 0 }}>
             {money(s.collected)} paid back
             {s.toGo > 0 ? ` · ${money(s.toGo)} to go` : ""}
@@ -221,6 +235,30 @@ export default function LiveBill() {
           <div className="progress" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${pct}%` }} />
           </div>
+
+          {hostCanEdit && !anyPaid && (
+            <div className="mode-row">
+              {s.evenSplit ? (
+                <>
+                  <span>Split evenly between</span>
+                  <div className="stepper">
+                    <button type="button" aria-label="Fewer people" disabled={!!busy || s.evenSplit <= 2} onClick={() => hostAction("set-even", undefined, s.evenSplit! - 1)}>−</button>
+                    <span>{s.evenSplit}</span>
+                    <button type="button" aria-label="More people" disabled={!!busy} onClick={() => hostAction("set-even", undefined, s.evenSplit! + 1)}>+</button>
+                  </div>
+                  <span>people</span>
+                  <button className="link" disabled={!!busy} onClick={() => hostAction("set-even", undefined, null)}>Split by items instead</button>
+                </>
+              ) : (
+                <>
+                  <span>Everyone pays for what they ordered.</span>
+                  <button className="link" disabled={!!busy} onClick={() => hostAction("set-even", undefined, Math.max(2, s.guests.length + 1))}>
+                    Split evenly instead
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {s.unclaimedCount > 0 && !s.splitLeftovers && s.guests.length > 0 && (
             <div className="leftovers">

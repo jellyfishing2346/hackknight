@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
-import { sameName } from "@/lib/split";
+import { loadBill } from "@/lib/bills";
+import { hasClaimed, sameName } from "@/lib/split";
 
-/** A guest claims an item ({ name, claim: true }) or lets go of it ({ name, claim: false }). */
+/**
+ * A guest joins an item ({ name, claim: true }) or leaves it ({ name, claim: false }).
+ * Several people can share an item; its price is split evenly between them.
+ */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = (await req.json()) as { name?: string; claim?: boolean };
@@ -10,32 +14,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!name) return NextResponse.json({ error: "Enter your name first." }, { status: 400 });
 
   const supa = db();
-  const { data: item } = await supa.from("items").select("bill_id, claimed_by").eq("id", id).maybeSingle();
-  if (!item) return NextResponse.json({ error: "Item not found." }, { status: 404 });
-  const { data: bill } = await supa.from("bills").select("host_name").eq("id", item.bill_id).maybeSingle();
+  const { data: row } = await supa.from("items").select("bill_id").eq("id", id).maybeSingle();
+  if (!row) return NextResponse.json({ error: "Item not found." }, { status: 404 });
+  const state = await loadBill(row.bill_id);
+  if (!state) return NextResponse.json({ error: "Bill not found." }, { status: 404 });
+  const item = state.items.find((i) => i.id === id)!;
+  const host = state.bill.host_name;
 
-  if (bill && sameName(name, bill.host_name)) {
-    return NextResponse.json({ error: `${bill.host_name} is the host. Pick your own name to claim items.` }, { status: 400 });
+  if (sameName(name, host)) {
+    return NextResponse.json({ error: `${host} is the host. Pick your own name to claim items.` }, { status: 400 });
   }
+  if (state.bill.even_split) {
+    return NextResponse.json({ error: "This bill is split evenly, so there's no need to pick items." }, { status: 400 });
+  }
+
+  const hasPaid = (n: string) => state.payments.some((p) => sameName(p.payer_name, n) && p.status === "paid");
 
   if (body.claim) {
-    if (item.claimed_by && !sameName(item.claimed_by, name)) {
-      return NextResponse.json({ error: `${item.claimed_by} already claimed this.` }, { status: 409 });
+    // Sharing an item lowers the others' shares, which would leave anyone who already paid overcharged.
+    const paidSharer = item.claimers.find((c) => !sameName(c, name) && !sameName(c, host) && hasPaid(c));
+    if (paidSharer) {
+      return NextResponse.json(
+        { error: `${paidSharer} already paid for this, so it can't be shared now. Ask ${host} to sort it out.` },
+        { status: 409 },
+      );
     }
-    await supa.from("items").update({ claimed_by: name }).eq("id", id).is("claimed_by", null);
-    return NextResponse.json({ ok: true });
+  } else {
+    if (!hasClaimed(item, name)) return NextResponse.json({ ok: true });
+    // Once you've paid, your items are locked so your total can't drop below what you sent.
+    if (hasPaid(name)) {
+      return NextResponse.json({ error: "You've already paid for this, so it's locked in." }, { status: 409 });
+    }
   }
 
-  // Releasing an item. Once someone has paid, their items are locked so their total can't drop below what they sent.
-  if (!sameName(item.claimed_by, name)) return NextResponse.json({ ok: true });
-  const { data: paid } = await supa
-    .from("payments")
-    .select("payer_name")
-    .eq("bill_id", item.bill_id)
-    .eq("status", "paid");
-  if ((paid ?? []).some((p) => sameName(p.payer_name, name))) {
-    return NextResponse.json({ error: "You've already paid for this, so it's locked in." }, { status: 409 });
+  const { error } = await supa.rpc("claim_item", { p_item: id, p_name: name, p_claim: !!body.claim });
+  if (error) {
+    const hint = /claim_item/.test(error.message) ? " Run supabase/migrations/003_shared_items.sql in Supabase." : "";
+    return NextResponse.json({ error: `Couldn't update the item: ${error.message}.${hint}` }, { status: 500 });
   }
-  await supa.from("items").update({ claimed_by: null }).eq("id", id).eq("claimed_by", item.claimed_by!);
   return NextResponse.json({ ok: true });
 }

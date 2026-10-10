@@ -11,6 +11,8 @@ type Body = {
   items?: { name: string; price: number }[];
   hostName?: string;
   hostWallet?: string;
+  /** Split the whole bill evenly this many ways (host included), instead of by item. */
+  evenSplit?: number | null;
 };
 
 /** Create a bill. Returns a private host token that unlocks the host's controls. */
@@ -51,6 +53,7 @@ async function createBill(req: Request) {
       host_name: hostName,
       host_wallet: hostWallet,
       host_token: hostToken,
+      even_split: body.evenSplit && body.evenSplit >= 2 && body.evenSplit <= 50 ? Math.floor(body.evenSplit) : null,
     })
     .select("id")
     .single();

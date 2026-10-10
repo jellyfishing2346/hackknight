@@ -24,6 +24,12 @@ export type Person = {
   settled: boolean;
 };
 
+/** True if this person is one of the item's claimers. */
+export const hasClaimed = (item: Item, name: string | null | undefined) => item.claimers.some((c) => sameName(c, name));
+
+/** One person's part of an item: its price divided between everyone who had it. */
+export const shareOfItem = (item: Item) => (item.claimers.length ? item.price / item.claimers.length : 0);
+
 export type Split = {
   host: Person;
   guests: Person[];
@@ -42,6 +48,9 @@ export type Split = {
   /** Unclaimed items plus their share of tax and tip, while nobody has taken them on yet. */
   unassigned: number;
   splitLeftovers: boolean;
+  /** Set when the whole bill is split evenly: how many ways, and each person's share. */
+  evenSplit: number | null;
+  evenShare: number | null;
   settled: boolean;
 };
 
@@ -56,23 +65,59 @@ export function split(bill: Bill, items: Item[], payments: Payment[]): Split {
   const add = (n: string | null) => {
     if (n && !names.some((x) => sameName(x, n))) names.push(n);
   };
-  items.forEach((i) => add(i.claimed_by));
+  items.forEach((i) => i.claimers.forEach(add));
   payments.forEach((p) => add(p.payer_name));
 
   const itemsTotal = sum(items.map((i) => i.price));
   const extrasTotal = bill.tax + bill.tip;
   const total = round2(itemsTotal + extrasTotal);
-  const unclaimed = items.filter((i) => !i.claimed_by);
+  const paidBy = (name: string) =>
+    round2(sum(payments.filter((p) => sameName(p.payer_name, name) && p.status === "paid").map((p) => p.amount)));
+
+  // Whole bill split evenly N ways, host included. Guests don't pick items.
+  const n = bill.even_split && bill.even_split >= 2 ? bill.even_split : null;
+  if (n) {
+    const per = round2(total / n);
+    const people: Person[] = names.map((name) => {
+      const isHost = sameName(name, hostName);
+      const paid = paidBy(name);
+      const owed = isHost ? 0 : per;
+      return { name, isHost, items: 0, leftover: 0, extras: 0, owed, paid, settled: isHost || paid >= owed - 0.005 };
+    });
+    const guests = people.slice(1);
+    const owedToHost = round2(per * (n - 1));
+    const collected = round2(sum(guests.map((g) => Math.min(g.paid, g.owed))));
+    return {
+      host: people[0],
+      guests,
+      people,
+      total,
+      hostShare: round2(total - owedToHost),
+      owedToHost,
+      collected,
+      toGo: round2(Math.max(0, owedToHost - collected)),
+      unclaimedCount: 0,
+      unclaimedTotal: 0,
+      unassigned: 0,
+      splitLeftovers: false,
+      evenSplit: n,
+      evenShare: per,
+      settled: guests.filter((g) => g.paid >= per - 0.005).length >= n - 1,
+    };
+  }
+
+  // Split by item. Shared items divide evenly between everyone who had them.
+  const unclaimed = items.filter((i) => i.claimers.length === 0);
   const unclaimedTotal = round2(sum(unclaimed.map((i) => i.price)));
   const splitLeftovers = bill.split_leftovers && unclaimed.length > 0;
 
   const people: Person[] = names.map((name) => {
     const isHost = sameName(name, hostName);
-    const mine = sum(items.filter((i) => sameName(i.claimed_by, name)).map((i) => i.price));
+    const mine = sum(items.filter((i) => hasClaimed(i, name)).map(shareOfItem));
     const leftover = splitLeftovers ? unclaimedTotal / names.length : 0;
     const base = mine + leftover;
     const extras = itemsTotal > 0 ? (base / itemsTotal) * extrasTotal : 0;
-    const paid = round2(sum(payments.filter((p) => sameName(p.payer_name, name) && p.status === "paid").map((p) => p.amount)));
+    const paid = paidBy(name);
     const owed = isHost ? 0 : round2(base + extras);
     return {
       name,
@@ -112,6 +157,8 @@ export function split(bill: Bill, items: Item[], payments: Payment[]): Split {
     unclaimedTotal,
     unassigned,
     splitLeftovers,
+    evenSplit: null,
+    evenShare: null,
     settled,
   };
 }
@@ -119,7 +166,10 @@ export function split(bill: Bill, items: Item[], payments: Payment[]): Split {
 /** What this person still needs to send the host. */
 export function amountLeft(s: Split, name: string) {
   const p = s.people.find((x) => sameName(x.name, name));
-  if (!p || p.isHost) return 0;
+  if (p?.isHost) return 0;
+  // Splitting evenly: anyone who joins owes one equal share, even before they appear in the list.
+  if (s.evenShare != null) return Math.max(0, round2(s.evenShare - (p?.paid ?? 0)));
+  if (!p) return 0;
   return Math.max(0, round2(p.owed - p.paid));
 }
 

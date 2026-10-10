@@ -4,13 +4,16 @@ import { Brand } from "@/app/components/Brand";
 import { Steps } from "@/app/components/Steps";
 
 const GUEST_STEPS = ["Your name", "Your food", "Pay back"];
+const EVEN_STEPS = ["Your name", "Pay back"];
+
+type ShareAsk = { itemId: string; itemName: string; price: number; others: string[] };
 import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Transaction } from "@solana/web3.js";
 import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
-import { amountLeft, explorerTx, latestSignature, money, sameName, split } from "@/lib/split";
+import { amountLeft, explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
 
 type PhantomProvider = {
   isPhantom?: boolean;
@@ -34,6 +37,7 @@ export default function Claim() {
   const [nameInput, setNameInput] = useState("");
   const [confirmName, setConfirmName] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [shareAsk, setShareAsk] = useState<ShareAsk | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [hasPhantom, setHasPhantom] = useState(false);
@@ -177,9 +181,13 @@ export default function Claim() {
     return (
       <main className="page">
         <Brand />
-        <Steps steps={GUEST_STEPS} current={0} />
+        <Steps steps={s.evenSplit ? EVEN_STEPS : GUEST_STEPS} current={0} />
         <h1>{bill.title}</h1>
-        <p className="lede">{host} paid for everyone. Tell us your name, tap what you ordered, and pay {host} back. It takes about 30 seconds.</p>
+        <p className="lede">
+          {s.evenSplit
+            ? `${host} paid for everyone, and the bill is split evenly ${s.evenSplit} ways. Tell us your name and pay ${host} back your share.`
+            : `${host} paid for everyone. Tell us your name, tap what you ordered, and pay ${host} back. It takes about 30 seconds.`}
+        </p>
         {confirmName ? (
           <div className="panel" style={{ textAlign: "left" }}>
             <h2>{confirmName} already joined.</h2>
@@ -197,7 +205,7 @@ export default function Claim() {
             </div>
             {actionError && <p className="error">{actionError}</p>}
             <div className="spacer" />
-            <button className="btn block big" disabled={!nameInput.trim()}>Next: pick your food →</button>
+            <button className="btn block big" disabled={!nameInput.trim()}>{s.evenSplit ? "Next: see your share →" : "Next: pick your food →"}</button>
           </form>
         )}
       </main>
@@ -210,29 +218,61 @@ export default function Claim() {
   const sig = latestSignature(name, payments);
 
   function renderItems() {
+    if (s.evenSplit) {
+      return (
+        <div className="receipt-wrap">
+          <div className="receipt">
+            <p className="receipt-title">{bill.title}</p>
+            <p className="receipt-sub">Split evenly {s.evenSplit} ways</p>
+            <hr className="rule" />
+            {items.map((i) => (
+              <div className="line" key={i.id}>
+                <span className="name">{i.name}</span>
+                <span className="price">{money(i.price)}</span>
+              </div>
+            ))}
+            <hr className="rule" />
+            <div className="line"><span>Total, with tax &amp; tip</span><span className="price">{money(s.total)}</span></div>
+            <div className="line total"><span>Your share (1 of {s.evenSplit})</span><span className="price">{money(s.evenShare ?? 0)}</span></div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="receipt-wrap">
         <div className="receipt">
           <p className="receipt-title">{bill.title}</p>
-          <p className="receipt-sub">Tap everything you ordered</p>
+          <p className="receipt-sub">Tap everything you ordered or shared</p>
           <hr className="rule" />
           {items.map((i) => {
-            const mine = sameName(i.claimed_by, name);
-            const taken = !!i.claimed_by && !mine;
-            const who = taken ? (sameName(i.claimed_by, host) ? `${host} (host)` : i.claimed_by) : null;
+            const mine = hasClaimed(i, name);
+            const others = i.claimers
+              .filter((c) => !sameName(c, name))
+              .map((c) => (sameName(c, host) ? `${host} (host)` : c));
+            const count = i.claimers.length;
+            const who =
+              mine && count > 1
+                ? `Shared with ${others.join(", ")} · ${money(i.price / count)} each`
+                : !mine && others.length
+                  ? `${others.join(", ")} · tap if you shared it`
+                  : null;
             return (
               <button
                 key={i.id}
-                className={`claim-line line${mine ? " mine" : ""}${taken ? " taken" : ""}`}
-                disabled={taken || busy === i.id}
+                className={`claim-line line${mine ? " mine" : ""}${!mine && others.length ? " others" : ""}`}
+                disabled={busy === i.id}
                 aria-pressed={mine}
-                onClick={() => toggle(i.id, !mine)}
+                onClick={() => {
+                  if (mine) toggle(i.id, false);
+                  else if (others.length) setShareAsk({ itemId: i.id, itemName: i.name, price: i.price, others });
+                  else toggle(i.id, true);
+                }}
               >
                 <span className="name">
                   {i.name}
                   {who && <span className="who">{who}</span>}
                 </span>
-                <span className="price">{money(i.price)}</span>
+                <span className="price">{mine && count > 1 ? money(i.price / count) : money(i.price)}</span>
               </button>
             );
           })}
@@ -242,6 +282,32 @@ export default function Claim() {
             <div className="line"><span>Your share of leftovers</span><span className="price">{money(me!.leftover)}</span></div>
           )}
           <div className="line"><span>Your share of tax &amp; tip</span><span className="price">{money(me?.extras ?? 0)}</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  /** "Did you share it?" so nobody joins someone else's dish by accident. */
+  function renderShareAsk() {
+    if (!shareAsk) return null;
+    const ways = shareAsk.others.length + 1;
+    return (
+      <div className="sheet-backdrop" onClick={() => setShareAsk(null)}>
+        <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="share-title" onClick={(e) => e.stopPropagation()}>
+          <h2 id="share-title">Did you share the {shareAsk.itemName} with {shareAsk.others.join(" and ")}?</h2>
+          <p className="muted">It'll be split {ways} ways, so each person pays {money(shareAsk.price / ways)}.</p>
+          <button
+            className="btn block big"
+            onClick={() => {
+              toggle(shareAsk.itemId, true);
+              setShareAsk(null);
+            }}
+          >
+            Yes, we shared it
+          </button>
+          <button className="btn ghost block" style={{ marginTop: "0.6rem" }} onClick={() => setShareAsk(null)}>
+            No, that's not mine
+          </button>
         </div>
       </div>
     );
@@ -261,7 +327,7 @@ export default function Claim() {
               </a>
             </p>
           )}
-          <p className="muted">Forgot something? Tap it below and pay the difference.</p>
+          {!s.evenSplit && <p className="muted">Forgot something? Tap it below and pay the difference.</p>}
           <p>
             <Link href="/" className="link">Split your own bill with Tabby →</Link>
           </p>
@@ -275,17 +341,28 @@ export default function Claim() {
   return (
     <main className="page">
       <Brand />
-      <Steps steps={GUEST_STEPS} current={(me?.items ?? 0) > 0 || (me?.leftover ?? 0) > 0 ? 2 : 1} />
-      <h1 style={{ fontSize: "2rem" }}>Hi {name}, what did you order?</h1>
+      {s.evenSplit ? (
+        <Steps steps={EVEN_STEPS} current={1} />
+      ) : (
+        <Steps steps={GUEST_STEPS} current={(me?.items ?? 0) > 0 || (me?.leftover ?? 0) > 0 ? 2 : 1} />
+      )}
+      <h1 style={{ fontSize: "2rem" }}>{s.evenSplit ? `Hi ${name}!` : `Hi ${name}, what did you order?`}</h1>
       <p className="lede" style={{ marginBottom: "1.5rem" }}>
-        {host} covered the bill. Tap your items and pay {host} back.{" "}
+        {s.evenSplit ? `${host} covered the bill for everyone.` : `${host} covered the bill. Tap your items and pay ${host} back.`}{" "}
         <button className="link" onClick={() => { try { sessionStorage.removeItem(`tabby:${id}:name`); } catch {} setName(""); setNameInput(""); }}>
           Not {name}?
         </button>
       </p>
-      {(me?.items ?? 0) === 0 && (
-        <p className="callout">👆 Tap the items you ordered. They'll turn yellow, and your total appears at the bottom.</p>
+      {s.evenSplit ? (
+        <p className="callout">
+          {host} split the bill evenly {s.evenSplit} ways. Your share is <strong>{money(s.evenShare ?? 0)}</strong>. Tap <strong>Pay {host} back</strong> below.
+        </p>
+      ) : (
+        (me?.items ?? 0) === 0 && (
+          <p className="callout">👆 Tap the items you ordered. Shared a dish? Tap it too and the cost splits automatically.</p>
+        )
       )}
+      {renderShareAsk()}
       {renderItems()}
       {actionError && <p className="error">{actionError}</p>}
       {s.splitLeftovers && (
@@ -322,7 +399,7 @@ export default function Claim() {
           <span className="amt">{money(left)}</span>
         </span>
         <button className="btn" onClick={payNow} disabled={left <= 0 || busy === "instant"}>
-          {busy === "instant" ? "Sending…" : left > 0 ? `Pay ${host} back` : "Tap your food first"}
+          {busy === "instant" ? "Sending…" : left > 0 ? `Pay ${host} back` : s.evenSplit ? "All paid" : "Tap your food first"}
         </button>
       </div>
     </main>

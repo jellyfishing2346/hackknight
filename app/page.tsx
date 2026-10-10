@@ -47,6 +47,8 @@ export default function Host() {
   const [saving, setSaving] = useState(false);
   const [hostName, setHostName] = useState("");
   const [hostWallet, setHostWallet] = useState("");
+  const [splitMode, setSplitMode] = useState<"items" | "even">("items");
+  const [people, setPeople] = useState(4);
 
   // Remember the host's name and wallet for their next bill.
   useEffect(() => {
@@ -102,6 +104,7 @@ export default function Host() {
           items: items.filter((i) => i.name.trim()).map((i) => ({ name: i.name, price: num(i.price) })),
           hostName,
           hostWallet,
+          evenSplit: splitMode === "even" ? people : null,
         }),
       });
       const data = await readJson<any>(res);
@@ -189,6 +192,42 @@ export default function Host() {
         </div>
 
         <div className="host-card">
+          <div className="field">
+            <span className="field-label">How should everyone split it?</span>
+            <div className="choice" role="radiogroup" aria-label="How to split the bill">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={splitMode === "items"}
+                className={`choice-opt${splitMode === "items" ? " on" : ""}`}
+                onClick={() => setSplitMode("items")}
+              >
+                <strong>By what each person ordered</strong>
+                <span>Friends tap their own food. Shared dishes split between whoever had them.</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={splitMode === "even"}
+                className={`choice-opt${splitMode === "even" ? " on" : ""}`}
+                onClick={() => setSplitMode("even")}
+              >
+                <strong>Split evenly</strong>
+                <span>Everyone pays the same share. No picking needed.</span>
+              </button>
+            </div>
+            {splitMode === "even" && (
+              <div className="stepper-row">
+                <span>Number of people, including you</span>
+                <div className="stepper">
+                  <button type="button" aria-label="Fewer people" onClick={() => setPeople((n) => Math.max(2, n - 1))} disabled={people <= 2}>−</button>
+                  <span aria-live="polite">{people}</span>
+                  <button type="button" aria-label="More people" onClick={() => setPeople((n) => Math.min(50, n + 1))}>+</button>
+                </div>
+                <span className="hint">Each person pays {money(round2(total / people))}.</span>
+              </div>
+            )}
+          </div>
           <div className="field">
             <label htmlFor="host">You paid the bill. What's your name?</label>
             <input id="host" autoComplete="given-name" placeholder="e.g. Sam" value={hostName} onChange={(e) => setHostName(e.target.value)} />
