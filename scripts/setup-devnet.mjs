@@ -5,6 +5,8 @@
 //                                       Paste the printed SPLIT_TOKEN_MINT into .env.local.
 //   npm run devnet fund <wallet> [100]  Sends a demo wallet 0.05 devnet SOL (for fees) and test tokens.
 //   npm run devnet balance <wallet>     Shows a wallet's SOL and test-token balance.
+//   npm run devnet export-admin         Prints the ADMIN_SECRET_KEY line for .env.local (and Vercel),
+//                                       which the one-tap "Pay" button needs.
 
 import fs from "node:fs";
 import {
@@ -85,6 +87,11 @@ if (cmd === "init") {
     } catch {}
   }
   console.log(`${owner.toBase58()}: ${sol} SOL, ${tokens} test tokens`);
+} else if (cmd === "export-admin") {
+  if (!fs.existsSync(ADMIN_FILE)) { console.error("No admin wallet yet. Run: npm run devnet init"); process.exit(1); }
+  const secret = fs.readFileSync(ADMIN_FILE, "utf8").trim();
+  console.log("\nAdd this line to .env.local (and to Vercel's environment variables). Keep it secret:\n");
+  console.log(`ADMIN_SECRET_KEY=${secret}\n`);
 } else {
-  console.log("Commands: init | fund <wallet> [amount] | balance <wallet>");
+  console.log("Commands: init | fund <wallet> [amount] | balance <wallet> | export-admin");
 }

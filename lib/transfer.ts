@@ -1,7 +1,8 @@
 import "server-only";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
+  createMintToInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
@@ -51,4 +52,46 @@ export async function buildTransfer(payerAddress: string, amount: number, refere
     transfer,
   );
   return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64");
+}
+
+/** The admin wallet from `npm run devnet init`. Pays fees and controls the test token. */
+function adminKeypair() {
+  const raw = process.env.ADMIN_SECRET_KEY;
+  if (!raw) throw new Error("ADMIN_SECRET_KEY is not set. Run: npm run devnet export-admin");
+  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw)));
+}
+
+/**
+ * One-tap payment with no wallet app. In a single devnet transaction:
+ * the admin wallet pays the fees, creates a fresh one-time wallet's token account,
+ * mints that wallet exactly the share, and the wallet sends it to the merchant
+ * tagged with the payment reference. The transfer is last, so the usual
+ * validateTransfer check verifies it like any other payment.
+ */
+export async function payInstantly(amount: number, reference: string) {
+  const admin = adminKeypair();
+  const payer = Keypair.generate();
+  const merchant = new PublicKey(process.env.MERCHANT_WALLET!);
+  const mint = new PublicKey(process.env.SPLIT_TOKEN_MINT!);
+  const units = BigInt(Math.round(amount * 10 ** DECIMALS));
+
+  const from = getAssociatedTokenAddressSync(mint, payer.publicKey);
+  const to = getAssociatedTokenAddressSync(mint, merchant);
+
+  const transfer = createTransferCheckedInstruction(from, mint, to, payer.publicKey, units, DECIMALS);
+  transfer.keys.push({ pubkey: new PublicKey(reference), isSigner: false, isWritable: false });
+
+  const conn = connection();
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  const tx = new Transaction({ feePayer: admin.publicKey, blockhash, lastValidBlockHeight }).add(
+    createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, from, payer.publicKey, mint),
+    createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, to, merchant, mint),
+    createMintToInstruction(mint, from, admin.publicKey, units),
+    transfer,
+  );
+  tx.sign(admin, payer);
+
+  const signature = await conn.sendRawTransaction(tx.serialize(), { preflightCommitment: "confirmed" });
+  await conn.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+  return signature;
 }

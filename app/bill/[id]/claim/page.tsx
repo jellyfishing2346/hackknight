@@ -118,6 +118,26 @@ export default function Claim() {
     }
   }
 
+  /** One tap, no wallet: the server sends a real devnet payment for this share. */
+  async function payNow() {
+    setBusy("instant");
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/bills/${id}/instant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await refresh();
+    } catch (e) {
+      setActionError((e as Error).message || "Payment failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!state) return <main className="page"><p className={error ? "error" : "muted"}>{error ?? "Loading bill…"}</p></main>;
   const { bill, items, payments } = state;
 
@@ -202,6 +222,12 @@ export default function Claim() {
       {renderItems()}
       {actionError && <p className="error">{actionError}</p>}
 
+      {!payUrl && left > 0 && (
+        <p style={{ textAlign: "center", marginTop: "1.25rem" }}>
+          <button className="link" onClick={pay} disabled={busy === "pay"}>Pay with my own wallet instead</button>
+        </p>
+      )}
+
       {payUrl && (
         <div className="panel" aria-live="polite">
           <h2>Pay {money(left)}</h2>
@@ -223,8 +249,8 @@ export default function Claim() {
           <span className="small">Your share</span>
           <span className="amt">{money(left)}</span>
         </span>
-        <button className="btn" onClick={pay} disabled={left <= 0 || busy === "pay"}>
-          {busy === "pay" ? "Preparing…" : payUrl ? "Refresh payment" : "Pay my share"}
+        <button className="btn" onClick={payNow} disabled={left <= 0 || busy === "instant"}>
+          {busy === "instant" ? "Paying…" : `Pay ${money(left)}`}
         </button>
       </div>
     </main>
