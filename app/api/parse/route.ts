@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   try {
     const ai = new GoogleGenAI({ apiKey });
     const res = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       contents: [{ inlineData: { mimeType: mimeType || "image/jpeg", data: image } }, { text: PROMPT }],
       config: { responseMimeType: "application/json", responseSchema: schema, temperature: 0 },
     });
