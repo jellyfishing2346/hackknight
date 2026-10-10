@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import { round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
+import { error } from "console";
 
 export const maxDuration = 30;
 
@@ -30,12 +31,31 @@ const schema = {
   required: ["merchant", "items", "tax", "tip"],
 };
 
+const SUPPORTED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf"
+])
+
+const MAX_BASE64_SIZE = 10 * 1024 * 1024; // 10 MB
+
+
 export async function POST(req: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY is not set." }, { status: 500 });
 
   const { image, mimeType } = (await req.json()) as { image?: string; mimeType?: string };
   if (!image) return NextResponse.json({ error: "No image was sent." }, { status: 400 });
+
+  if (!SUPPORTED_MIME_TYPES.has(mimeType || "")) {
+    return NextResponse.json({error: `Unsupported mime type: ${mimeType}. Supported types are ${Array.from(SUPPORTED_MIME_TYPES).join(",")}`}, {status: 415});
+  }
+  if(image.length > MAX_BASE64_SIZE){
+    return NextResponse.json({error: "That file is too large. Try a smaller one."}, {status: 413});
+  }
 
   try {
     const ai = new GoogleGenAI({ apiKey });
