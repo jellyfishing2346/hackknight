@@ -39,6 +39,8 @@ export type Split = {
   toGo: number;
   unclaimedCount: number;
   unclaimedTotal: number;
+  /** Unclaimed items plus their share of tax and tip, while nobody has taken them on yet. */
+  unassigned: number;
   splitLeftovers: boolean;
   settled: boolean;
 };
@@ -91,7 +93,7 @@ export function split(bill: Bill, items: Item[], payments: Payment[]): Split {
 
   // Whatever isn't owed by guests or still unassigned is the host's own part.
   // This is where any rounding cent lands, so the parts always add up to the total.
-  const unassigned = splitLeftovers || itemsTotal === 0 ? 0 : (unclaimedTotal / itemsTotal) * (itemsTotal + extrasTotal);
+  const unassigned = round2(splitLeftovers || itemsTotal === 0 ? 0 : (unclaimedTotal / itemsTotal) * (itemsTotal + extrasTotal));
   const hostShare = round2(total - owedToHost - unassigned);
 
   const allAssigned = unclaimed.length === 0 || splitLeftovers;
@@ -108,6 +110,7 @@ export function split(bill: Bill, items: Item[], payments: Payment[]): Split {
     toGo: round2(owedToHost - collected),
     unclaimedCount: unclaimed.length,
     unclaimedTotal,
+    unassigned,
     splitLeftovers,
     settled,
   };

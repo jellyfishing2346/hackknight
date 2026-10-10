@@ -64,7 +64,9 @@ export default function LiveBill() {
   const { bill, items, payments } = state;
   const host = bill.host_name;
   const isHostDevice = !!hostToken;
-  const pct = s.owedToHost > 0 ? Math.min(100, (s.collected / s.owedToHost) * 100) : 0;
+  // Progress counts unclaimed items as still outstanding, so the bar can't hit 100% early.
+  const outstanding = s.owedToHost + s.unassigned;
+  const pct = outstanding > 0 ? Math.min(100, (s.collected / outstanding) * 100) : 0;
 
   return (
     <main className="page wide">
@@ -142,7 +144,9 @@ export default function LiveBill() {
 
           <h2 style={{ marginBottom: "0.2rem" }}>{host} fronted {money(s.total)}</h2>
           <p className="muted" style={{ margin: 0 }}>
-            {money(s.collected)} paid back{s.toGo > 0 ? ` · ${money(s.toGo)} to go` : ""}
+            {money(s.collected)} paid back
+            {s.toGo > 0 ? ` · ${money(s.toGo)} to go` : ""}
+            {s.unassigned > 0 ? ` · ${money(s.unassigned)} unclaimed` : ""}
           </p>
           <div className="progress" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${pct}%` }} />
