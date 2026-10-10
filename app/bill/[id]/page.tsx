@@ -297,8 +297,14 @@ export default function LiveBill() {
                 <span className="chain-link">Paid the restaurant</span>
               </span>
               <span className="row">
-                <span className="person-amt">{money(s.hostShare)}</span>
-                <span className="stamp muted-stamp">Covered</span>
+                {s.hostShare > 0 ? (
+                  <span className="person-amt">
+                    {money(s.hostShare)} <span className="amt-note">own share</span>
+                  </span>
+                ) : (
+                  <span className="muted" style={{ fontSize: "0.9rem" }}>Hasn't picked their food yet</span>
+                )}
+                <span className="host-tag">Host</span>
               </span>
             </div>
             {s.guests.length === 0 && <p className="muted waiting"><span className="spinner small" aria-hidden="true" /> Waiting for friends to scan the code…</p>}
