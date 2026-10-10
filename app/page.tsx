@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money, round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
@@ -40,6 +40,16 @@ export default function Host() {
   const [tip, setTip] = useState("0");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hostName, setHostName] = useState("");
+  const [hostWallet, setHostWallet] = useState("");
+
+  // Remember the host's name and wallet for their next bill.
+  useEffect(() => {
+    try {
+      setHostName(localStorage.getItem("tabby:hostName") ?? "");
+      setHostWallet(localStorage.getItem("tabby:hostWallet") ?? "");
+    } catch {}
+  }, []);
 
   function load(r: ParsedReceipt) {
     setTitle(r.merchant || "Dinner");
@@ -86,10 +96,18 @@ export default function Host() {
           tax: num(tax),
           tip: num(tip),
           items: items.filter((i) => i.name.trim()).map((i) => ({ name: i.name, price: num(i.price) })),
+          hostName,
+          hostWallet,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      try {
+        // The host token unlocks the host's controls on this device only.
+        localStorage.setItem(`tabby:host:${data.id}`, data.hostToken);
+        localStorage.setItem("tabby:hostName", hostName.trim());
+        localStorage.setItem("tabby:hostWallet", hostWallet.trim());
+      } catch {}
       router.push(`/bill/${data.id}`);
     } catch (e) {
       setError((e as Error).message);
@@ -154,9 +172,28 @@ export default function Host() {
           </div>
         </div>
 
-        <div className="spacer" />
-        <button className="btn block" onClick={start} disabled={saving || items.length === 0}>
-          {saving ? "Creating bill…" : "Share with the table"}
+        <div className="host-card">
+          <div className="field">
+            <label htmlFor="host">Who paid the bill?</label>
+            <input id="host" autoComplete="given-name" placeholder="Your name" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="wallet">Where should friends pay you back?</label>
+            <input
+              id="wallet"
+              className="mono"
+              placeholder="Your Solana address (optional)"
+              value={hostWallet}
+              onChange={(e) => setHostWallet(e.target.value)}
+              spellCheck={false}
+              autoCapitalize="off"
+            />
+            <span className="hint">Leave blank to use the demo wallet.</span>
+          </div>
+        </div>
+
+        <button className="btn block" onClick={start} disabled={saving || items.length === 0 || !hostName.trim()}>
+          {saving ? "Creating bill…" : hostName.trim() ? `Share with the table` : "Add your name to share"}
         </button>
         {error && <p className="error">{error}</p>}
       </main>

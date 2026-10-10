@@ -8,6 +8,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { name } = (await req.json()) as { name?: string };
   const prepared = await preparePayment(id, name ?? "");
   if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: prepared.status });
-  const { payment, amount } = prepared;
-  return NextResponse.json({ payment, url: paymentURL(amount, payment.reference, name!) });
+  const { payment, amount, recipient } = prepared;
+  return NextResponse.json({ payment, url: paymentURL(recipient, amount, payment.reference, name!.trim()) });
 }

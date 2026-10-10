@@ -5,6 +5,10 @@ create table if not exists bills (
   title text not null default 'Dinner',
   tax numeric(10,2) not null default 0,
   tip numeric(10,2) not null default 0,
+  host_name text not null default 'Host',
+  host_wallet text,
+  host_token text,
+  split_leftovers boolean not null default false,
   created_at timestamptz not null default now()
 );
 

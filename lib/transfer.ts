@@ -19,13 +19,13 @@ export function connection() {
  * Shaped the way Solana Pay's validateTransfer expects: the transfer is the last instruction
  * and the reference is the extra account after the transfer's own accounts.
  */
-export async function buildTransfer(payerAddress: string, amount: number, reference: string) {
+export async function buildTransfer(payerAddress: string, recipient: string, amount: number, reference: string) {
   const payer = new PublicKey(payerAddress);
-  const merchant = new PublicKey(process.env.MERCHANT_WALLET!);
+  const merchant = new PublicKey(recipient);
   const mint = new PublicKey(process.env.SPLIT_TOKEN_MINT!);
 
   if (payer.equals(merchant)) {
-    throw new Error("This wallet collects the payments. Switch to a different account in Phantom to pay.");
+    throw new Error("This is the host's wallet, so it can't pay itself back. Switch to a different account in Phantom.");
   }
 
   const conn = connection();
@@ -68,10 +68,10 @@ function adminKeypair() {
  * tagged with the payment reference. The transfer is last, so the usual
  * validateTransfer check verifies it like any other payment.
  */
-export async function payInstantly(amount: number, reference: string) {
+export async function payInstantly(recipient: string, amount: number, reference: string) {
   const admin = adminKeypair();
   const payer = Keypair.generate();
-  const merchant = new PublicKey(process.env.MERCHANT_WALLET!);
+  const merchant = new PublicKey(recipient);
   const mint = new PublicKey(process.env.SPLIT_TOKEN_MINT!);
   const units = BigInt(Math.round(amount * 10 ** DECIMALS));
 

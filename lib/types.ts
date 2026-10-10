@@ -3,6 +3,12 @@ export type Bill = {
   title: string;
   tax: number;
   tip: number;
+  /** The friend who paid the restaurant. Everyone else pays them back. */
+  host_name: string;
+  /** Where repayments go. Null means the app's default (demo) wallet. */
+  host_wallet: string | null;
+  /** When true, unclaimed items are split evenly between everyone. */
+  split_leftovers: boolean;
   created_at: string;
 };
 

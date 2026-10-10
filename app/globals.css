@@ -146,3 +146,22 @@ h2 { font-size: 1.35rem; letter-spacing: -0.02em; font-weight: 800; margin: 0 0 
 .field { display: grid; gap: 0.2rem; }
 .field label { font-family: var(--sans); font-size: 0.85rem; color: var(--muted); }
 .spacer { height: 1.5rem; }
+
+/* Settled state on the live bill, and links to transactions on the explorer */
+.settled { display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center; margin-bottom: 2.25rem; min-height: 10.5rem; }
+.settled h2 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+.chain-link { display: block; font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-top: 0.15rem; }
+.chain-link:hover { color: var(--ink); }
+.chain-link.inline { display: inline; font-size: 0.95rem; }
+@media (max-width: 30rem) { .settled { grid-template-columns: 1fr; justify-items: start; } }
+
+/* Host details on the review screen */
+.host-card { display: grid; gap: 1.1rem; background: var(--paper); border-radius: 18px; padding: 1.25rem 1.4rem; margin: 1.5rem 0; }
+.field input.mono, input.mono { font-family: var(--mono); font-size: 0.85rem; }
+.field .hint { font-size: 0.8rem; color: var(--muted); }
+
+/* Leftover controls and the host's covered row on the live bill */
+.leftovers { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.9rem 1rem; margin: 0 0 1.25rem; border: 2px dashed #b9bfb9; border-radius: 14px; }
+.btn.small { min-height: 2.4rem; padding: 0.45rem 1rem; font-size: 0.95rem; }
+.stamp.muted-stamp { color: var(--muted); border-color: #b9bfb9; background: transparent; }
+.host-hint { font-size: 0.9rem; margin: 1rem 0 0; max-width: 26rem; }

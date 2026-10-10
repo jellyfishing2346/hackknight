@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: prepared.status });
 
   try {
-    const signature = await payInstantly(prepared.amount, prepared.payment.reference);
+    const signature = await payInstantly(prepared.recipient, prepared.amount, prepared.payment.reference);
     return NextResponse.json({ signature });
   } catch (err) {
     console.error("Instant payment failed:", err);

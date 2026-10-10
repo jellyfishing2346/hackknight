@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
-import { loadBill } from "@/lib/bills";
+import { loadBill, recipientFor } from "@/lib/bills";
 import { checkPayment } from "@/lib/solana";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const pending = state.payments.filter((p) => p.status === "pending");
   if (pending.length > 0) {
-    const results = await Promise.all(pending.map((p) => checkPayment(p.reference, p.amount)));
+    const recipient = recipientFor(state.bill);
+    const results = await Promise.all(pending.map((p) => checkPayment(recipient, p.reference, p.amount)));
     const supa = db();
     await Promise.all(
       pending.map(async (p, i) => {
