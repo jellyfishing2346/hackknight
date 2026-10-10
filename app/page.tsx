@@ -10,6 +10,7 @@ import type { ParsedReceipt } from "@/lib/types";
 
 import { TabbyAI, type TabbyDraft } from "@/app/components/TabbyAI";
 import { readProfile, saveProfile } from "@/app/components/profile";
+import { addToHistory } from "@/app/components/history";
 type Draft = { name: string; price: string };
 
 const HOST_STEPS = ["Snap", "Check", "Share"];
@@ -132,6 +133,7 @@ export default function Host() {
         // The host token unlocks the host's controls on this device only.
         localStorage.setItem(`tabby:host:${data.id}`, data.hostToken);
         saveProfile({ username: hostName.trim(), wallet: hostWallet.trim() });
+        addToHistory(data.id);
       } catch {}
       router.push(`/bill/${data.id}`);
     } catch (e) {
@@ -312,6 +314,7 @@ export default function Host() {
       <div className="page-head">
         <Brand />
         <Link href="/settings" className="nav-link">Profile</Link>
+        <Link href="/history" className="nav-link">Your tabs →</Link>
       </div>
       <Steps steps={HOST_STEPS} current={0} />
       <h1>Snap the receipt. Everyone pays their part.</h1>
