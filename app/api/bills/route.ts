@@ -15,6 +15,15 @@ type Body = {
 
 /** Create a bill. Returns a private host token that unlocks the host's controls. */
 export async function POST(req: Request) {
+  try {
+    return await createBill(req);
+  } catch (err) {
+    console.error("Creating bill failed:", err);
+    return NextResponse.json({ error: `Couldn't create the bill: ${(err as Error).message}` }, { status: 500 });
+  }
+}
+
+async function createBill(req: Request) {
   const body = (await req.json()) as Body;
   const items = (body.items ?? []).filter((i) => i.name?.trim() && Number.isFinite(i.price));
   if (items.length === 0) return NextResponse.json({ error: "Add at least one item." }, { status: 400 });

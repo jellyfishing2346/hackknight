@@ -1,4 +1,5 @@
 "use client";
+import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money, round2 } from "@/lib/split";
@@ -71,8 +72,7 @@ export default function Host() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image, mimeType: "image/jpeg" }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await readJson<any>(res);
       load(data);
     } catch (e) {
       setError((e as Error).message || "Couldn't read the receipt.");
@@ -100,8 +100,7 @@ export default function Host() {
           hostWallet,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await readJson<any>(res);
       try {
         // The host token unlocks the host's controls on this device only.
         localStorage.setItem(`tabby:host:${data.id}`, data.hostToken);

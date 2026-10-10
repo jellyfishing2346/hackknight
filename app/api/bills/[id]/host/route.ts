@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { isHost, loadBill } from "@/lib/bills";
+import { split } from "@/lib/split";
 
 type Body = {
   token?: string;
@@ -18,6 +19,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!state) return NextResponse.json({ error: "Bill not found." }, { status: 404 });
   const host = state.bill.host_name;
   const supa = db();
+
+  // Once a guest has paid, nothing may change what guests owe, or they'd be over- or under-charged.
+  const anyPaid = state.payments.some((p) => p.status === "paid");
+  if (split(state.bill, state.items, state.payments).settled) {
+    return NextResponse.json({ error: "This bill is settled, so it's locked." }, { status: 409 });
+  }
+  const changesGuestShares =
+    action === "split-rest" || action === "unsplit" || (state.bill.split_leftovers && action !== undefined);
+  if (anyPaid && changesGuestShares) {
+    return NextResponse.json(
+      { error: "Someone has already paid, so the split is locked. You can still cover leftovers yourself." },
+      { status: 409 },
+    );
+  }
 
   switch (action) {
     case "claim-item": {

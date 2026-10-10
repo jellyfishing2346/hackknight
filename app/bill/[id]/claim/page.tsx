@@ -1,4 +1,5 @@
 "use client";
+import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Transaction } from "@solana/web3.js";
@@ -80,7 +81,11 @@ export default function Claim() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, claim }),
     });
-    if (!res.ok) setActionError((await res.json()).error);
+    try {
+      await readJson(res);
+    } catch (e) {
+      setActionError((e as Error).message);
+    }
     await refresh();
     setBusy(null);
   }
@@ -95,8 +100,7 @@ export default function Claim() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await readJson<any>(res);
       await refresh();
     } catch (e) {
       setActionError((e as Error).message || "Payment failed.");
@@ -114,9 +118,12 @@ export default function Claim() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    const data = await res.json();
-    if (!res.ok) setActionError(data.error);
-    else setPayUrl(data.url);
+    try {
+      const data = await readJson<{ url: string }>(res);
+      setPayUrl(data.url);
+    } catch (e) {
+      setActionError((e as Error).message);
+    }
     setBusy(null);
   }
 
@@ -139,16 +146,14 @@ export default function Claim() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, account: publicKey.toString() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await readJson<any>(res);
       const signed = await provider.signTransaction(Transaction.from(fromBase64(data.transaction)));
       const sent = await fetch("/api/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transaction: toBase64(new Uint8Array(signed.serialize())) }),
       });
-      const result = await sent.json();
-      if (!sent.ok) throw new Error(result.error);
+      const result = await readJson<any>(sent);
       await refresh();
     } catch (e) {
       const err = e as { code?: number; message?: string };
