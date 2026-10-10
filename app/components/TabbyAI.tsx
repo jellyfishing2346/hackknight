@@ -9,7 +9,7 @@ export type { TabbyDraft };
 type Msg = { role: "user" | "assistant"; text: string };
 
 const GREETING =
-  "Hi! Tell me about the bill and I'll set it up. For example: \"Dinner at Luigi's, two pizzas at 18 each, wings for 12, 8% tax, 20% tip, split evenly between 4 of us. I'm Sam and I paid.\"";
+  "Hi! Tell me about the bill and I'll set it up. For example: \"Ski trip with friends, cabin was 420, gear rental 180, lift tickets 320, split evenly between 4 of us. I'm Sam and I paid.\"";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 const MAX_SECONDS = 60;
@@ -191,7 +191,7 @@ export function TabbyAI({ onUse }: { onUse: (draft: TabbyDraft) => void }) {
                   <p className="ai-draft-mode">
                     {draft.splitMode === "even"
                       ? `Split evenly between ${draft.people} people · ${money(draftTotal / draft.people)} each`
-                      : "Everyone pays for what they ordered"}
+                      : "Everyone pays for what they got"}
                     {draft.hostName && ` · ${draft.hostName} paid`}
                   </p>
                   <button

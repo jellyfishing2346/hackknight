@@ -9,7 +9,7 @@ import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
 import { explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
 
-/** The laptop screen in the middle of the table. The host's device also gets host controls. */
+/** The host's shared live screen. The host's device also gets host controls. */
 export default function LiveBill() {
   const { id } = useParams<{ id: string }>();
   const { state, error, refresh } = useBill(id);
@@ -213,7 +213,7 @@ export default function LiveBill() {
                 <h2>Friends: scan this to pay {host} back</h2>
                 <ol className="mini-steps">
                   <li>Open your phone's camera and point it here</li>
-                  <li>{s.evenSplit ? "Enter your name" : "Tap the food you ordered (shared dishes too)"}</li>
+                  <li>{s.evenSplit ? "Enter your name" : "Tap your share of the host's tab (shared items too)"}</li>
                   <li>Tap <strong>Pay {host} back</strong></li>
                 </ol>
                 <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>
@@ -251,7 +251,7 @@ export default function LiveBill() {
                 </>
               ) : (
                 <>
-                  <span>Everyone pays for what they ordered.</span>
+                  <span>Everyone pays for what they got.</span>
                   <button className="link" disabled={!!busy} onClick={() => hostAction("set-even", undefined, Math.max(2, s.guests.length + 1))}>
                     Split evenly instead
                   </button>
@@ -294,7 +294,7 @@ export default function LiveBill() {
             <div className="person">
               <span>
                 <span className="person-name">{host}</span>
-                <span className="chain-link">Paid the restaurant</span>
+                <span className="chain-link">Paid the bill</span>
               </span>
               <span className="row">
                 {s.hostShare > 0 ? (
@@ -302,7 +302,7 @@ export default function LiveBill() {
                     {money(s.hostShare)} <span className="amt-note">own share</span>
                   </span>
                 ) : (
-                  <span className="muted" style={{ fontSize: "0.9rem" }}>Hasn't picked their food yet</span>
+                  <span className="muted" style={{ fontSize: "0.9rem" }}>Hasn't picked their items yet</span>
                 )}
                 <span className="host-tag">Host</span>
               </span>

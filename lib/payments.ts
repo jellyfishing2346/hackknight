@@ -28,7 +28,7 @@ export async function preparePayment(billId: string, name: string): Promise<Prep
     }
   }
   const amount = amountLeft(s, name);
-  if (amount <= 0) return { ok: false, status: 400, error: "Nothing left to pay. Tap the items you ordered." };
+  if (amount <= 0) return { ok: false, status: 400, error: "Nothing left to pay. Tap the items that are yours." };
 
   const recipient = recipientFor(state.bill);
   const hostName = state.bill.host_name;

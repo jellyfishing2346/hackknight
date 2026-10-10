@@ -61,7 +61,7 @@ export function normalizeDraft(raw: RawDraft | null | undefined): TabbyDraft | n
   const people = Math.round(num(raw.people));
   const even = raw.splitMode === "even" && people >= 2;
   return {
-    merchant: (raw.merchant ?? "").trim() || "Dinner",
+    merchant: (raw.merchant ?? "").trim() || "Tab",
     items,
     tax: round2(Math.max(0, tax)),
     tip: round2(Math.max(0, tip)),

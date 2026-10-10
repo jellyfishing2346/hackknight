@@ -57,7 +57,7 @@ export type Split = {
 /**
  * The whole bill, split. Each person pays for their items plus an even share of any
  * leftovers the host chose to split, and tax and tip in proportion to that. The host
- * paid the restaurant, so they owe nothing and absorb any rounding cent.
+ * paid upfront, so they owe nothing and absorb any rounding cent.
  */
 export function split(bill: Bill, items: Item[], payments: Payment[]): Split {
   const hostName = bill.host_name;

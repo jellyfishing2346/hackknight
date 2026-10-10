@@ -6,7 +6,7 @@ import { error } from "console";
 
 export const maxDuration = 30;
 
-const PROMPT = `You are reading a photo of a restaurant or store receipt.
+const PROMPT = `You are reading a photo of a receipt or itemized bill for any kind of purchase (a restaurant, a store, a rental, a trip, anything with line items).
 Return every purchased line item with its final price. If a line has a quantity, multiply it out.
 Apply item-level discounts to that item's price.
 Do not include subtotal, tax, tip, service charge, total, change, or payment-method lines as items.

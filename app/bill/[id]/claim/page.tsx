@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Brand } from "@/app/components/Brand";
 import { Steps } from "@/app/components/Steps";
 
-const GUEST_STEPS = ["Your name", "Your food", "Pay back"];
+const GUEST_STEPS = ["Your name", "Your share", "Pay back"];
 const EVEN_STEPS = ["Your name", "Pay back"];
 
 type ShareAsk = { itemId: string; itemName: string; price: number; others: string[] };
@@ -14,6 +14,7 @@ import { Transaction } from "@solana/web3.js";
 import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
 import { amountLeft, explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
+import { readProfile, saveProfile } from "@/app/components/profile";
 
 type PhantomProvider = {
   isPhantom?: boolean;
@@ -29,7 +30,7 @@ function getPhantom(): PhantomProvider | null {
 const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const toBase64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""));
 
-/** What each friend sees on their phone after scanning the table QR. */
+/** What each friend sees on their phone after scanning the shared QR. */
 export default function Claim() {
   const { id } = useParams<{ id: string }>();
   const { state, error, refresh } = useBill(id, 2000);
@@ -46,6 +47,7 @@ export default function Claim() {
     try {
       const saved = sessionStorage.getItem(`tabby:${id}:name`);
       if (saved) setName(saved);
+      else setNameInput(readProfile().username);
     } catch {}
   }, [id]);
 
@@ -60,6 +62,7 @@ export default function Claim() {
     try {
       sessionStorage.setItem(`tabby:${id}:name`, n);
     } catch {}
+    saveProfile({ username: n });
     setName(n);
     setConfirmName(null);
     setActionError(null);
@@ -186,7 +189,7 @@ export default function Claim() {
         <p className="lede">
           {s.evenSplit
             ? `${host} paid for everyone, and the bill is split evenly ${s.evenSplit} ways. Tell us your name and pay ${host} back your share.`
-            : `${host} paid for everyone. Tell us your name, tap what you ordered, and pay ${host} back. It takes about 30 seconds.`}
+            : `${host} paid for everyone. Tell us your name, tap what's yours, and pay ${host} back. It takes about 30 seconds.`}
         </p>
         {confirmName ? (
           <div className="panel" style={{ textAlign: "left" }}>
@@ -205,7 +208,7 @@ export default function Claim() {
             </div>
             {actionError && <p className="error">{actionError}</p>}
             <div className="spacer" />
-            <button className="btn block big" disabled={!nameInput.trim()}>{s.evenSplit ? "Next: see your share →" : "Next: pick your food →"}</button>
+            <button className="btn block big" disabled={!nameInput.trim()}>{s.evenSplit ? "Next: see your share →" : "Next: pick your share →"}</button>
           </form>
         )}
       </main>
@@ -242,7 +245,7 @@ export default function Claim() {
       <div className="receipt-wrap">
         <div className="receipt">
           <p className="receipt-title">{bill.title}</p>
-          <p className="receipt-sub">Tap everything you ordered or shared</p>
+          <p className="receipt-sub">Tap everything that's yours or shared</p>
           <hr className="rule" />
           {items.map((i) => {
             const mine = hasClaimed(i, name);
@@ -287,7 +290,7 @@ export default function Claim() {
     );
   }
 
-  /** "Did you share it?" so nobody joins someone else's dish by accident. */
+  /** "Did you share it?" so nobody joins someone else's item by accident. */
   function renderShareAsk() {
     if (!shareAsk) return null;
     const ways = shareAsk.others.length + 1;
@@ -346,7 +349,7 @@ export default function Claim() {
       ) : (
         <Steps steps={GUEST_STEPS} current={(me?.items ?? 0) > 0 || (me?.leftover ?? 0) > 0 ? 2 : 1} />
       )}
-      <h1 style={{ fontSize: "2rem" }}>{s.evenSplit ? `Hi ${name}!` : `Hi ${name}, what did you order?`}</h1>
+      <h1 style={{ fontSize: "2rem" }}>{s.evenSplit ? `Hi ${name}!` : `Hi ${name}, what's yours?`}</h1>
       <p className="lede" style={{ marginBottom: "1.5rem" }}>
         {s.evenSplit ? `${host} covered the bill for everyone.` : `${host} covered the bill. Tap your items and pay ${host} back.`}{" "}
         <button className="link" onClick={() => { try { sessionStorage.removeItem(`tabby:${id}:name`); } catch {} setName(""); setNameInput(""); }}>
@@ -359,7 +362,7 @@ export default function Claim() {
         </p>
       ) : (
         (me?.items ?? 0) === 0 && (
-          <p className="callout">👆 Tap the items you ordered. Shared a dish? Tap it too and the cost splits automatically.</p>
+          <p className="callout">👆 Tap the items that are yours. Sharing something? Tap it too and the cost splits automatically.</p>
         )
       )}
       {renderShareAsk()}
@@ -399,7 +402,7 @@ export default function Claim() {
           <span className="amt">{money(left)}</span>
         </span>
         <button className="btn" onClick={payNow} disabled={left <= 0 || busy === "instant"}>
-          {busy === "instant" ? "Sending…" : left > 0 ? `Pay ${host} back` : s.evenSplit ? "All paid" : "Tap your food first"}
+          {busy === "instant" ? "Sending…" : left > 0 ? `Pay ${host} back` : s.evenSplit ? "All paid" : "Tap your items first"}
         </button>
       </div>
     </main>
