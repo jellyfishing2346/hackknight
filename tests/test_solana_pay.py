@@ -5,6 +5,8 @@ from unittest.mock import patch, Mock
 import pytest
 from backend.services.solana_pay import find_signature, rpc_call
 from backend.services.solana_pay import tokens_received
+from backend.services.solana_pay import check_payment, to_base_units
+
 
 OTHER = "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
 OTHER_MINT = "So11111111111111111111111111111111111111112"
@@ -68,3 +70,51 @@ def test_other_mint_is_ignored():
 def test_other_owner_is_ignored():
     tx = make_tx([], [bal(OTHER, MINT, 5_000_000)])
     assert tokens_received(tx, RECIPIENT, MINT) == 0
+
+def run_check(tx, expected="12.50", sig="sig123"):
+    with patch("backend.services.solana_pay.find_signature", return_value=sig), \
+            patch("backend.services.solana_pay.rpc_call", return_value=tx):
+        return check_payment("ref", Decimal(expected), RECIPIENT, MINT)
+
+def test_to_base_units():
+    assert to_base_units(Decimal("12.50")) == 12_500_000
+    assert to_base_units(12.5) == 12_500_000
+
+def test_valid_payment_returns_the_signature():
+    assert run_check(make_tx([], [bal(RECIPIENT, MINT, 12_500_000)])) == "sig123"
+
+def test_overpayment_is_accepted():
+    assert run_check(make_tx([], [bal(RECIPIENT, MINT, 13_000_000)])) == "sig123"
+
+def test_underpayment_is_rejected():
+    assert run_check(make_tx([], [bal(RECIPIENT, MINT, 12_490_000)])) is None
+
+def test_wrong_token_is_rejected():
+    assert run_check(make_tx([], [bal(RECIPIENT, OTHER_MINT, 12_500_000)])) is None
+
+def test_wrong_recipient_is_rejected():
+    assert run_check(make_tx([], [bal(OTHER, MINT, 12_500_000)])) is None
+
+def test_failed_transaction_is_rejected():
+    tx = make_tx([], [bal(RECIPIENT, MINT, 12_500_000)])
+    tx["meta"]["err"] = {"InstructionError": [0, "Custom"]}
+    assert run_check(tx) is None
+
+def test_no_signature_means_not_paid_yet():
+    with patch("backend.services.solana_pay.find_signature", return_value=None), \
+         patch("backend.services.solana_pay.rpc_call") as rpc:
+        assert check_payment("ref", Decimal("12.50"), RECIPIENT, MINT) is None
+        rpc.assert_not_called()
+
+def test_transaction_not_available_yet():
+    assert run_check(None) is None
+
+def test_zero_expected_amount_is_refused():
+    with pytest.raises(ValueError):
+        run_check(make_tx([], [bal(RECIPIENT, MINT, 1)]), expected="0")
+
+def test_rpc_failure_is_not_swallowed():
+    with patch("backend.services.solana_pay.find_signature", return_value="sig"), \
+         patch("backend.services.solana_pay.rpc_call", side_effect=RuntimeError("down")):
+        with pytest.raises(RuntimeError):
+            check_payment("ref", Decimal("12.50"), RECIPIENT, MINT)

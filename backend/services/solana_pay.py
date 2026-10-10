@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env.local")
 
+TOKEN_DECIMALS = 6
+
+
+def to_base_units(amount) -> int:
+    return int((Decimal(str(amount)) * 10**TOKEN_DECIMALS).to_integral_value())
 
 def generate_keypair_string() -> str:
     """Generates a new Solana keypair and returns it as a base58 string."""
@@ -77,3 +82,29 @@ def tokens_received(tx, recipient, mint):
     pre = sum_balances(meta.get("preTokenBalances", []))
     return post - pre
 
+
+
+def check_payment(reference, expected_amount, recipient, mint):
+    expected_units = to_base_units(expected_amount)
+    if expected_units <= 0:
+        raise ValueError("expected_amount must be positive")
+
+    signature = find_signature(reference)
+    if signature is None:
+        return None
+
+    tx = rpc_call("getTransaction", [signature, {
+        "encoding": "jsonParsed",
+        "commitment": "confirmed",
+        "maxSupportedTransactionVersion": 0,
+    }])
+    if tx is None:
+        return None
+
+    if tx["meta"]["err"] is not None:
+        return None
+
+    if tokens_received(tx, recipient, mint) < expected_units:
+        return None
+
+    return signature
