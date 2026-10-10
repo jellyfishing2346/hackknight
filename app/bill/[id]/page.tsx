@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
-import { explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
+import { explorerTx, hasClaimed, latestSignature, money, round2, sameName, split } from "@/lib/split";
+import "@/app/components/features.css";
 
 /** The host's shared live screen. The host's device also gets host controls. */
 export default function LiveBill() {
@@ -24,6 +25,42 @@ export default function LiveBill() {
   const [soundOn, setSoundOn] = useState(false);
   const [soundError, setSoundError] = useState<string | null>(null);
   const speechQueue = useRef<Promise<void>>(Promise.resolve());
+  // Browsers only allow sound after someone has tapped the page once.
+  const [audioAllowed, setAudioAllowed] = useState(true);
+  const blocked = useRef<{ kind: "paid" | "settled" | "test"; name?: string }[]>([]);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+  const [reminded, setReminded] = useState<Set<string>>(new Set());
+
+  /** Turn read-aloud on or off, and remember the choice on this device. On unless switched off. */
+  function setSound(on: boolean) {
+    setSoundOn(on);
+    try {
+      localStorage.setItem("tabby:sound", on ? "on" : "off");
+    } catch {}
+  }
+
+  useEffect(() => {
+    let pref: string | null = null;
+    try {
+      pref = localStorage.getItem("tabby:sound");
+    } catch {}
+    setSoundOn(pref !== "off");
+    const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+    if (ua && !ua.hasBeenActive) setAudioAllowed(false);
+    const unlock = () => {
+      setAudioAllowed(true);
+      // Play anything that arrived while sound was blocked.
+      const pending = blocked.current.splice(0);
+      pending.forEach((p) => announce(p.kind, p.name));
+    };
+    document.addEventListener("pointerdown", unlock, { once: true });
+    document.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Fetch an announcement from the server and play it after any that are already playing. */
   function announce(kind: "paid" | "settled" | "test", name?: string) {
@@ -41,7 +78,18 @@ export default function LiveBill() {
         }
         const url = URL.createObjectURL(await res.blob());
         const audio = new Audio(url);
-        await audio.play();
+        try {
+          await audio.play();
+        } catch (err) {
+          if ((err as Error).name === "NotAllowedError") {
+            // Blocked until someone taps the page: keep it and play it after that tap.
+            blocked.current.push({ kind, name });
+            setAudioAllowed(false);
+            URL.revokeObjectURL(url);
+            return;
+          }
+          throw err;
+        }
         await new Promise<void>((done) => {
           audio.onended = () => done();
           audio.onerror = () => done();
@@ -104,6 +152,50 @@ export default function LiveBill() {
   if (!state || !s) return <main className="page"><p className={error ? "error" : "muted"}>{error ?? "Loading bill…"}</p></main>;
 
   const { bill, items, payments } = state;
+
+  /** Share or copy a message, using the phone's share menu when there is one. Returns what happened. */
+  async function shareText(title: string, text: string, url: string): Promise<"shared" | "copied" | "cancelled"> {
+    const nav = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share({ title, text, url });
+        return "shared";
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return "cancelled";
+      }
+    }
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    return "copied";
+  }
+
+  /** "Send to group chat": for friends who aren't at the table. */
+  async function shareBill() {
+    const each = s!.evenSplit ? ` It's split evenly, ${money(s!.evenShare ?? 0)} each.` : "";
+    const text = `${host} covered ${bill.title} (${money(s!.total)}).${each} Tap to see your share and pay ${host} back:`;
+    try {
+      const how = await shareText(`${bill.title} on Tabby`, text, joinUrl);
+      if (how === "copied") setShareNote("Link copied. Paste it in your group chat.");
+      else if (how === "shared") setShareNote("Sent!");
+    } catch {
+      setShareNote("Couldn't share. Copy this page's QR link instead.");
+    }
+    setTimeout(() => setShareNote(null), 4000);
+  }
+
+  /** A friendly nudge with the exact amount and the link to pay. */
+  async function remind(guest: string, amount: number) {
+    const text = `Hi ${guest}! Friendly reminder from ${host}: your share of ${bill.title} is ${money(amount)}. You can pay it back in one tap here:`;
+    try {
+      const how = await shareText(`Your share of ${bill.title}`, text, joinUrl);
+      if (how !== "cancelled") setReminded((prev) => new Set(prev).add(guest));
+      if (how === "copied") {
+        setShareNote(`Reminder for ${guest} copied. Paste it in a message.`);
+        setTimeout(() => setShareNote(null), 4000);
+      }
+    } catch {
+      setShareNote("Couldn't copy the reminder.");
+    }
+  }
   const host = bill.host_name;
   const isHostDevice = !!hostToken;
   // Host controls lock once settled, and anything that changes guests' shares locks once someone pays.
@@ -180,13 +272,13 @@ export default function LiveBill() {
         <section>
           <p className="sound-toggle">
             {soundOn ? (
-              <button className="btn ghost small" onClick={() => setSoundOn(false)}>🔊 Reading payments aloud · Turn off</button>
+              <button className="btn ghost small" onClick={() => setSound(false)}>🔊 Reading payments aloud · Turn off</button>
             ) : (
               <button
                 className="btn ghost small"
                 onClick={() => {
                   setSoundError(null);
-                  setSoundOn(true);
+                  setSound(true);
                   announce("test");
                 }}
               >
@@ -194,6 +286,12 @@ export default function LiveBill() {
               </button>
             )}
           </p>
+          {soundOn && !audioAllowed && (
+            <div className="sound-prompt" role="status">
+              <span aria-hidden="true">🔇</span>
+              <span>Tap anywhere once so Tabby can read payments aloud.</span>
+            </div>
+          )}
           {soundError && <p className="error" style={{ marginTop: 0 }}>{soundError}</p>}
           {s.settled ? (
             <div className="settled" aria-live="polite">
@@ -217,6 +315,10 @@ export default function LiveBill() {
                   <li>Tap <strong>Pay {host} back</strong></li>
                 </ol>
                 <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>
+                <div className="share-row">
+                  <button className="btn ghost small" onClick={shareBill}>📤 Send to group chat</button>
+                  {shareNote && <span className="share-note" role="status">{shareNote}</span>}
+                </div>
               </div>
             </div>
           )}
@@ -325,7 +427,17 @@ export default function LiveBill() {
                     {g.settled && g.owed > 0 ? (
                       <span className={`stamp${fresh.has(g.name) ? " fresh" : ""}`}>Paid</span>
                     ) : (
-                      <span className="muted" style={{ fontSize: "0.9rem" }}>{g.paid > 0 ? `${money(g.owed - g.paid)} left` : "Not paid"}</span>
+                      <>
+                        <span className="muted" style={{ fontSize: "0.9rem" }}>{g.paid > 0 ? `${money(g.owed - g.paid)} left` : "Not paid"}</span>
+                        {isHostDevice && g.owed > 0 && (
+                          <button
+                            className={`remind-btn${reminded.has(g.name) ? " sent" : ""}`}
+                            onClick={() => remind(g.name, round2(g.owed - g.paid))}
+                          >
+                            {reminded.has(g.name) ? "Reminded ✓" : "Remind"}
+                          </button>
+                        )}
+                      </>
                     )}
                   </span>
                 </div>

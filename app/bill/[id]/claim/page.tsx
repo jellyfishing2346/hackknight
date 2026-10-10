@@ -15,6 +15,7 @@ import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
 import { amountLeft, explorerTx, hasClaimed, latestSignature, money, sameName, split } from "@/lib/split";
 import { readProfile, saveProfile } from "@/app/components/profile";
+import { GuestAssist } from "@/app/components/GuestAssist";
 
 type PhantomProvider = {
   isPhantom?: boolean;
@@ -82,6 +83,26 @@ export default function Claim() {
       return;
     }
     chooseName(n);
+  }
+
+  /** Claim the items a guest confirmed from "Tell Tabby what you had". The usual claim rules still apply. */
+  async function applyMatches(itemIds: string[]) {
+    setActionError(null);
+    setPayUrl(null);
+    const problems: string[] = [];
+    for (const itemId of itemIds) {
+      const res = await fetch(`/api/items/${itemId}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, claim: true }),
+      });
+      if (!res.ok) {
+        // readJson throws with the server's explanation, e.g. "Ana already paid for this".
+        await readJson(res).catch((e: Error) => problems.push(e.message));
+      }
+    }
+    await refresh();
+    if (problems.length) setActionError(problems[0]);
   }
 
   async function toggle(itemId: string, claim: boolean) {
@@ -365,6 +386,7 @@ export default function Claim() {
           <p className="callout">👆 Tap the items that are yours. Sharing something? Tap it too and the cost splits automatically.</p>
         )
       )}
+      {!s.evenSplit && <GuestAssist billId={id} name={name} onApply={applyMatches} />}
       {renderShareAsk()}
       {renderItems()}
       {actionError && <p className="error">{actionError}</p>}

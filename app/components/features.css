@@ -1,0 +1,40 @@
+/* Guest "Tell Tabby what you had", sharing, reminders, and the sound prompt. Kept out of globals.css. */
+.assist-entry { margin: 0 0 1rem; }
+.assist-btn { width: 100%; }
+.assist-done { margin: 0.6rem 0 0; color: var(--stamp); font-weight: 600; font-size: 0.95rem; }
+
+.assist-card { background: var(--paper); border: 2px solid var(--ink); border-radius: 16px; padding: 1rem 1.1rem 1.1rem; margin: 0 0 1.25rem; }
+.assist-head { display: flex; align-items: center; justify-content: space-between; }
+.assist-sub { font-size: 0.88rem; margin: 0.25rem 0 0.8rem; }
+.ai-close-x { border: 0; background: none; font-size: 1.6rem; line-height: 1; color: var(--muted); cursor: pointer; padding: 0 0.2rem; }
+
+.assist-input { display: flex; gap: 0.5rem; align-items: center; }
+.assist-input input { flex: 1; min-width: 0; border: 2px solid var(--rule); border-radius: 12px; padding: 0.6rem 0.7rem; font-size: 1rem; background: var(--paper); }
+.assist-input input:focus { outline: none; border-color: var(--ink); }
+.assist-mic { flex: none; width: 2.8rem; height: 2.8rem; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); font-size: 1.15rem; cursor: pointer; display: grid; place-items: center; }
+.assist-mic.on { background: #c0392b; border-color: #c0392b; color: #fff; animation: assist-pulse 1.2s ease-in-out infinite; }
+@keyframes assist-pulse { 50% { box-shadow: 0 0 0 7px rgba(192, 57, 43, 0.2); } }
+@media (prefers-reduced-motion: reduce) { .assist-mic.on { animation: none; } }
+
+.assist-reply { margin: 0.8rem 0 0.4rem; font-size: 0.97rem; }
+.assist-matches { list-style: none; padding: 0; margin: 0.4rem 0 0.9rem; display: grid; gap: 0.4rem; }
+.assist-matches label { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.7rem; border-radius: 10px; background: #fff8d6; cursor: pointer; }
+.assist-matches label.already { background: transparent; color: var(--muted); cursor: default; }
+.assist-matches input { width: 1.2rem; height: 1.2rem; accent-color: var(--ink); }
+.assist-item { display: grid; font-family: var(--mono); font-size: 0.95rem; }
+.assist-note { font-family: var(--sans); font-size: 0.8rem; color: var(--muted); }
+
+/* Share with the group chat, and reminders */
+.share-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
+.share-note { font-size: 0.85rem; color: var(--stamp); font-weight: 600; }
+.remind-btn { border: 1.5px solid var(--ink); background: var(--paper); border-radius: 999px; padding: 0.2rem 0.7rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.remind-btn.sent { border-color: var(--stamp); color: var(--stamp); }
+
+/* Browsers block sound until someone taps the page; this asks for that one tap. */
+/* A floating banner, so it can disappear without shifting the page under someone's finger. */
+.sound-prompt {
+  position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
+  display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem);
+  background: #fff8d6; border: 1px solid #f0dc7a; border-radius: 12px; padding: 0.6rem 0.9rem; font-size: 0.92rem;
+  box-shadow: 0 6px 18px rgba(28, 34, 40, 0.15); pointer-events: none;
+}
