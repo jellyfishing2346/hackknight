@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Brand } from "@/app/components/Brand";
 import { Steps } from "@/app/components/Steps";
 import { readJson } from "@/app/components/api";
@@ -8,21 +9,21 @@ import { money, round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
 
 import { TabbyAI, type TabbyDraft } from "@/app/components/TabbyAI";
+import { readProfile, saveProfile } from "@/app/components/profile";
 type Draft = { name: string; price: string };
 
 const HOST_STEPS = ["Snap", "Check", "Share"];
 
 const SAMPLE: ParsedReceipt = {
-  merchant: "Sample receipt",
+  merchant: "Weekend ski trip",
   items: [
-    { name: "Chicken tacos", price: 14.5 },
-    { name: "Carne asada burrito", price: 16 },
-    { name: "Chips & guac", price: 9.25 },
-    { name: "Horchata", price: 4.5 },
-    { name: "Mango agua fresca", price: 4.75 },
+    { name: "Cabin rental (2 nights)", price: 420 },
+    { name: "Ski rental, 4 sets", price: 180 },
+    { name: "Lift tickets x4", price: 320 },
+    { name: "Groceries", price: 96.5 },
   ],
-  tax: 4.33,
-  tip: 9.8,
+  tax: 38.2,
+  tip: 0,
 };
 
 /** Shrink phone photos before upload so they stay well under request size limits. */
@@ -52,14 +53,12 @@ export default function Host() {
   const [people, setPeople] = useState(4);
   const [walletMode, setWalletMode] = useState<"demo" | "own">("demo");
 
-  // Remember the host's name and wallet for their next bill.
+  // Prefill from the Tabby profile, so returning hosts don't retype their name and wallet.
   useEffect(() => {
-    try {
-      setHostName(localStorage.getItem("tabby:hostName") ?? "");
-      const saved = localStorage.getItem("tabby:hostWallet") ?? "";
-      setHostWallet(saved);
-      if (saved) setWalletMode("own");
-    } catch {}
+    const p = readProfile();
+    setHostName(p.username);
+    setHostWallet(p.wallet);
+    if (p.wallet) setWalletMode("own");
   }, []);
 
   function chooseWalletMode(mode: "demo" | "own") {
@@ -68,7 +67,7 @@ export default function Host() {
   }
 
   function load(r: ParsedReceipt) {
-    setTitle(r.merchant || "Dinner");
+    setTitle(r.merchant || "Tab");
     setItems(r.items.map((i) => ({ name: i.name, price: i.price.toFixed(2) })));
     setTax(r.tax.toFixed(2));
     setTip(r.tip.toFixed(2));
@@ -101,7 +100,7 @@ export default function Host() {
 
   /** Load a bill from Tabby AI into the review screen. */
   function applyAiDraft(d: TabbyDraft) {
-    load({ merchant: d.merchant || "Dinner", items: d.items, tax: d.tax, tip: d.tip });
+    load({ merchant: d.merchant || "Tab", items: d.items, tax: d.tax, tip: d.tip });
     if (d.hostName) setHostName(d.hostName);
     if (d.splitMode === "even" && d.people >= 2) {
       setSplitMode("even");
@@ -132,8 +131,7 @@ export default function Host() {
       try {
         // The host token unlocks the host's controls on this device only.
         localStorage.setItem(`tabby:host:${data.id}`, data.hostToken);
-        localStorage.setItem("tabby:hostName", hostName.trim());
-        localStorage.setItem("tabby:hostWallet", hostWallet.trim());
+        saveProfile({ username: hostName.trim(), wallet: hostWallet.trim() });
       } catch {}
       router.push(`/bill/${data.id}`);
     } catch (e) {
@@ -223,8 +221,8 @@ export default function Host() {
                 className={`choice-opt${splitMode === "items" ? " on" : ""}`}
                 onClick={() => setSplitMode("items")}
               >
-                <strong>By what each person ordered</strong>
-                <span>Friends tap their own food. Shared dishes split between whoever had them.</span>
+                <strong>By what each person got</strong>
+                <span>Friends tap what's theirs. Shared items split between whoever had them.</span>
               </button>
               <button
                 type="button"
@@ -302,7 +300,7 @@ export default function Host() {
           onClick={start}
           disabled={saving || items.length === 0 || !hostName.trim() || (walletMode === "own" && !hostWallet.trim())}
         >
-          {saving ? "Creating your bill…" : hostName.trim() ? "Share with the table →" : "Add your name to continue"}
+          {saving ? "Creating your bill…" : hostName.trim() ? "Share with the group →" : "Add your name to continue"}
         </button>
         {error && <p className="error">{error}</p>}
       </main>
@@ -311,10 +309,13 @@ export default function Host() {
 
   return (
     <main className="page">
-      <Brand />
+      <div className="page-head">
+        <Brand />
+        <Link href="/settings" className="nav-link">Profile</Link>
+      </div>
       <Steps steps={HOST_STEPS} current={0} />
       <h1>Snap the receipt. Everyone pays their part.</h1>
-      <p className="lede">You paid the bill? Friends tap what they ordered and pay you back in seconds. No math, no chasing.</p>
+      <p className="lede">You paid for everyone? Friends tap what's theirs and pay you back in seconds. No math, no chasing.</p>
 
       {stage === "reading" ? (
         <div className="drop" aria-live="polite">
@@ -337,7 +338,7 @@ export default function Host() {
       <div className="spacer" />
       <p className="muted" style={{ margin: "0 0 0.6rem", fontSize: "0.9rem" }}>No receipt handy?</p>
       <div className="row">
-        <button className="btn ghost" onClick={() => load({ merchant: "Dinner", items: [{ name: "", price: 0 }], tax: 0, tip: 0 })}>
+        <button className="btn ghost" onClick={() => load({ merchant: "Tab", items: [{ name: "", price: 0 }], tax: 0, tip: 0 })}>
           Type it in
         </button>
         <button className="btn ghost" onClick={() => load(SAMPLE)}>Try a sample receipt</button>

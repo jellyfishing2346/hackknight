@@ -13,7 +13,7 @@ Rules:
 - Tax and tip: if given in dollars, put them in tax/tip. If given as a percent, put the number in taxPercent/tipPercent and leave tax/tip at 0.
 - If they want to split evenly ("split evenly", "split 4 ways", "between the 4 of us"), set splitMode "even" and people to the total number of people including the person who paid. Otherwise splitMode "items".
 - If they say who paid ("I'm Sam", "Sam paid"), put that name in hostName.
-- merchant is the restaurant or occasion, or "Dinner" if unknown.
+- merchant is the name of the place, vendor, or occasion the bill is for, or "Tab" if unknown.
 - Always return the full, current draft built from the whole conversation, not just the latest message. Use draft null only if there is no item with a price yet.
 - reply: one or two short, friendly sentences. If the draft is usable, summarize it in a few words and say they can tap "Use this bill" or keep adding. If something essential is missing, ask one clear question.
 - Only help with splitting bills. Politely steer anything else back to the bill.`;

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Tabby: split the bill, settle on Solana",
-  description: "Snap the receipt, claim what you ordered, pay your share in a second.",
+  description: "Snap the receipt, claim what's yours, pay your share in a second.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#E6E9E4" };

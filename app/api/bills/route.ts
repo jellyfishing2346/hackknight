@@ -47,7 +47,7 @@ async function createBill(req: Request) {
   const { data: bill, error } = await supa
     .from("bills")
     .insert({
-      title: body.title?.trim() || "Dinner",
+      title: body.title?.trim() || "Tab",
       tax: round2(body.tax ?? 0),
       tip: round2(body.tip ?? 0),
       host_name: hostName,

@@ -3,7 +3,7 @@ export type Bill = {
   title: string;
   tax: number;
   tip: number;
-  /** The friend who paid the restaurant. Everyone else pays them back. */
+  /** The friend who paid upfront. Everyone else pays them back. */
   host_name: string;
   /** Where repayments go. Null means the app's default (demo) wallet. */
   host_wallet: string | null;
