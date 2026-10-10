@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { money, round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
 
+import { TabbyAI, type TabbyDraft } from "@/app/components/TabbyAI";
 type Draft = { name: string; price: string };
 
 const HOST_STEPS = ["Snap", "Check", "Share"];
@@ -97,6 +98,18 @@ export default function Host() {
   const num = (s: string) => (Number.isFinite(parseFloat(s)) ? parseFloat(s) : 0);
   const itemsTotal = round2(items.reduce((s, i) => s + num(i.price), 0));
   const total = round2(itemsTotal + num(tax) + num(tip));
+
+  /** Load a bill from Tabby AI into the review screen. */
+  function applyAiDraft(d: TabbyDraft) {
+    load({ merchant: d.merchant || "Dinner", items: d.items, tax: d.tax, tip: d.tip });
+    if (d.hostName) setHostName(d.hostName);
+    if (d.splitMode === "even" && d.people >= 2) {
+      setSplitMode("even");
+      setPeople(d.people);
+    } else {
+      setSplitMode("items");
+    }
+  }
 
   async function start() {
     setSaving(true);
@@ -338,6 +351,7 @@ export default function Host() {
           <li><strong>Everyone pays you back.</strong> One tap each, and you watch it land.</li>
         </ol>
       </section>
+      <TabbyAI onUse={applyAiDraft} />
     </main>
   );
 }
