@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Brand } from "@/app/components/Brand";
 import { Steps } from "@/app/components/Steps";
 import { readJson } from "@/app/components/api";
@@ -8,6 +9,7 @@ import { money, round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
 
 import { TabbyAI, type TabbyDraft } from "@/app/components/TabbyAI";
+import { addToHistory } from "@/app/components/history";
 type Draft = { name: string; price: string };
 
 const HOST_STEPS = ["Snap", "Check", "Share"];
@@ -134,6 +136,7 @@ export default function Host() {
         localStorage.setItem(`tabby:host:${data.id}`, data.hostToken);
         localStorage.setItem("tabby:hostName", hostName.trim());
         localStorage.setItem("tabby:hostWallet", hostWallet.trim());
+        addToHistory(data.id);
       } catch {}
       router.push(`/bill/${data.id}`);
     } catch (e) {
@@ -311,7 +314,10 @@ export default function Host() {
 
   return (
     <main className="page">
-      <Brand />
+      <div className="page-head">
+        <Brand />
+        <Link href="/history" className="nav-link">Your tabs →</Link>
+      </div>
       <Steps steps={HOST_STEPS} current={0} />
       <h1>Snap the receipt. Everyone pays their part.</h1>
       <p className="lede">You paid the bill? Friends tap what they ordered and pay you back in seconds. No math, no chasing.</p>
