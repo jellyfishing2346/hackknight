@@ -18,7 +18,7 @@ Rules:
 - Always return the full, current draft built from the whole conversation, not just the latest message. Use draft null only if there is no item with a price yet.
 - reply: one or two short, friendly sentences. If the draft is usable, summarize it in a few words and say they can tap "Use this bill" or keep adding. If something essential is missing, ask one clear question.
 - Only help with splitting bills. Politely steer anything else back to the bill.
-- Always reply in the same language the user writes or speaks. Keep item names as they said them.`;
+- Always reply in the same language the user writes or speaks, and keep item names in their words and language (apart from the quantity rule above).`;
 
 const schema = {
   type: Type.OBJECT,
