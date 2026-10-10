@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
 import { Brand } from "@/app/components/Brand";
+import { Steps } from "@/app/components/Steps";
+
+const GUEST_STEPS = ["Your name", "Your food", "Pay back"];
 import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -174,8 +177,9 @@ export default function Claim() {
     return (
       <main className="page">
         <Brand />
+        <Steps steps={GUEST_STEPS} current={0} />
         <h1>{bill.title}</h1>
-        <p className="lede">{host} covered the bill. Add your name, tap what you ordered, and pay {host} back.</p>
+        <p className="lede">{host} paid for everyone. Tell us your name, tap what you ordered, and pay {host} back. It takes about 30 seconds.</p>
         {confirmName ? (
           <div className="panel" style={{ textAlign: "left" }}>
             <h2>{confirmName} already joined.</h2>
@@ -193,7 +197,7 @@ export default function Claim() {
             </div>
             {actionError && <p className="error">{actionError}</p>}
             <div className="spacer" />
-            <button className="btn block" disabled={!nameInput.trim()}>Join the bill</button>
+            <button className="btn block big" disabled={!nameInput.trim()}>Next: pick your food →</button>
           </form>
         )}
       </main>
@@ -253,7 +257,7 @@ export default function Claim() {
           {sig && (
             <p>
               <a className="chain-link inline" href={explorerTx(sig)} target="_blank" rel="noreferrer">
-                See your payment on the Solana Explorer ↗
+                See proof of payment ↗
               </a>
             </p>
           )}
@@ -271,6 +275,7 @@ export default function Claim() {
   return (
     <main className="page">
       <Brand />
+      <Steps steps={GUEST_STEPS} current={(me?.items ?? 0) > 0 || (me?.leftover ?? 0) > 0 ? 2 : 1} />
       <h1 style={{ fontSize: "2rem" }}>Hi {name}, what did you order?</h1>
       <p className="lede" style={{ marginBottom: "1.5rem" }}>
         {host} covered the bill. Tap your items and pay {host} back.{" "}
@@ -278,6 +283,9 @@ export default function Claim() {
           Not {name}?
         </button>
       </p>
+      {(me?.items ?? 0) === 0 && (
+        <p className="callout">👆 Tap the items you ordered. They'll turn yellow, and your total appears at the bottom.</p>
+      )}
       {renderItems()}
       {actionError && <p className="error">{actionError}</p>}
       {s.splitLeftovers && (
@@ -288,7 +296,7 @@ export default function Claim() {
 
       {!payUrl && left > 0 && (
         <p style={{ textAlign: "center", marginTop: "1.25rem" }}>
-          <button className="link" onClick={payFromWallet} disabled={busy === "pay"}>Pay from my own wallet instead</button>
+          <button className="link quiet" onClick={payFromWallet} disabled={busy === "pay"}>Have a crypto wallet? Pay from it instead</button>
         </p>
       )}
 
@@ -314,7 +322,7 @@ export default function Claim() {
           <span className="amt">{money(left)}</span>
         </span>
         <button className="btn" onClick={payNow} disabled={left <= 0 || busy === "instant"}>
-          {busy === "instant" ? "Paying…" : left > 0 ? `Pay ${host} back` : "Tap your items"}
+          {busy === "instant" ? "Sending…" : left > 0 ? `Pay ${host} back` : "Tap your food first"}
         </button>
       </div>
     </main>

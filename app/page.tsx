@@ -1,5 +1,6 @@
 "use client";
 import { Brand } from "@/app/components/Brand";
+import { Steps } from "@/app/components/Steps";
 import { readJson } from "@/app/components/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,6 +8,8 @@ import { money, round2 } from "@/lib/split";
 import type { ParsedReceipt } from "@/lib/types";
 
 type Draft = { name: string; price: string };
+
+const HOST_STEPS = ["Snap", "Check", "Share"];
 
 const SAMPLE: ParsedReceipt = {
   merchant: "Sample receipt",
@@ -134,8 +137,9 @@ export default function Host() {
         <p style={{ margin: "0 0 0.75rem" }}>
           <button className="link back-link" onClick={reset}>← Start over</button>
         </p>
+        <Steps steps={HOST_STEPS} current={1} />
         <h1>Check the receipt</h1>
-        <p className="lede">Fix anything that was misread, then share the bill with the table.</p>
+        <p className="lede">Tap any line to fix it. Make sure the total matches your paper receipt.</p>
 
         <div className="receipt-wrap">
           <div className="receipt">
@@ -163,7 +167,7 @@ export default function Host() {
               </div>
             ))}
             <p style={{ margin: "0.75rem 0 0" }}>
-              <button className="link" onClick={() => setItems((l) => [...l, { name: "", price: "" }])}>Add item</button>
+              <button className="btn ghost small" onClick={() => setItems((l) => [...l, { name: "", price: "" }])}>+ Add an item</button>
             </p>
             <hr className="rule" />
             <div className="edit-line">
@@ -186,26 +190,29 @@ export default function Host() {
 
         <div className="host-card">
           <div className="field">
-            <label htmlFor="host">Who paid the bill?</label>
-            <input id="host" autoComplete="given-name" placeholder="Your name" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+            <label htmlFor="host">You paid the bill. What's your name?</label>
+            <input id="host" autoComplete="given-name" placeholder="e.g. Sam" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+            <span className="hint">Friends will see "Pay {hostName.trim() || "you"} back".</span>
           </div>
-          <div className="field">
-            <label htmlFor="wallet">Where should friends pay you back?</label>
-            <input
-              id="wallet"
-              className="mono"
-              placeholder="Your Solana address (optional)"
-              value={hostWallet}
-              onChange={(e) => setHostWallet(e.target.value)}
-              spellCheck={false}
-              autoCapitalize="off"
-            />
-            <span className="hint">Leave blank to use the demo wallet.</span>
-          </div>
+          <details className="advanced">
+            <summary>Advanced: get paid to your own crypto wallet</summary>
+            <div className="field" style={{ marginTop: "0.75rem" }}>
+              <label htmlFor="wallet">Your Solana wallet address</label>
+              <input
+                id="wallet"
+                className="mono"
+                placeholder="Leave blank to use the demo wallet"
+                value={hostWallet}
+                onChange={(e) => setHostWallet(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="off"
+              />
+            </div>
+          </details>
         </div>
 
-        <button className="btn block" onClick={start} disabled={saving || items.length === 0 || !hostName.trim()}>
-          {saving ? "Creating bill…" : hostName.trim() ? `Share with the table` : "Add your name to share"}
+        <button className="btn block big" onClick={start} disabled={saving || items.length === 0 || !hostName.trim()}>
+          {saving ? "Creating your bill…" : hostName.trim() ? "Share with the table →" : "Add your name to continue"}
         </button>
         {error && <p className="error">{error}</p>}
       </main>
@@ -215,30 +222,45 @@ export default function Host() {
   return (
     <main className="page">
       <Brand />
+      <Steps steps={HOST_STEPS} current={0} />
       <h1>Snap the receipt. Everyone pays their part.</h1>
-      <p className="lede">Friends tap what they ordered and settle their share in about a second, no chasing anyone later.</p>
+      <p className="lede">You paid the bill? Friends tap what they ordered and pay you back in seconds. No math, no chasing.</p>
 
       {stage === "reading" ? (
         <div className="drop" aria-live="polite">
           {preview && <img className="preview" src={preview} alt="Your receipt" />}
-          <strong>Reading the receipt…</strong>
+          <span className="spinner" aria-hidden="true" />
+          <strong>Reading your receipt…</strong>
+          <span className="muted">This takes a few seconds.</span>
         </div>
       ) : (
         <label className="drop">
+          <span className="drop-icon" aria-hidden="true">📷</span>
           <strong>Take a photo of the receipt</strong>
           <span className="muted">or choose one from your photos</span>
+          <span className="btn small" aria-hidden="true">Choose photo</span>
           <input type="file" accept="image/*" capture="environment" onChange={(e) => onPhoto(e.target.files?.[0])} />
         </label>
       )}
       {error && <p className="error">{error}</p>}
 
       <div className="spacer" />
+      <p className="muted" style={{ margin: "0 0 0.6rem", fontSize: "0.9rem" }}>No receipt handy?</p>
       <div className="row">
         <button className="btn ghost" onClick={() => load({ merchant: "Dinner", items: [{ name: "", price: 0 }], tax: 0, tip: 0 })}>
-          Type it in instead
+          Type it in
         </button>
-        <button className="link" onClick={() => load(SAMPLE)}>Use a sample receipt</button>
+        <button className="btn ghost" onClick={() => load(SAMPLE)}>Try a sample receipt</button>
       </div>
+
+      <section className="how" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <ol>
+          <li><strong>Snap the receipt.</strong> Tabby reads every item, plus tax and tip.</li>
+          <li><strong>Friends scan your screen.</strong> They tap what they ate. No app needed.</li>
+          <li><strong>Everyone pays you back.</strong> One tap each, and you watch it land.</li>
+        </ol>
+      </section>
     </main>
   );
 }

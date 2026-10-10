@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Brand } from "@/app/components/Brand";
+import { Steps } from "@/app/components/Steps";
 import { readJson } from "@/app/components/api";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -116,6 +117,7 @@ export default function LiveBill() {
   return (
     <main className="page wide">
       <Brand />
+      {isHostDevice && !s.settled && <Steps steps={["Snap", "Check", "Share"]} current={2} />}
       <div className="live">
         <div>
           <div className="receipt-wrap">
@@ -162,24 +164,24 @@ export default function LiveBill() {
             </div>
           </div>
           {hostCanEdit && !(sharesLocked && s.splitLeftovers) && (
-            <p className="muted host-hint">You're the host. Tap the items you had yourself, they're already covered.</p>
+            <p className="callout">👆 <strong>You're the host.</strong> Tap anything you ate yourself. It's already covered, so you won't pay for it.</p>
           )}
         </div>
 
         <section>
           <p className="sound-toggle">
             {soundOn ? (
-              <button className="link" onClick={() => setSoundOn(false)}>🔊 Announcements on · turn off</button>
+              <button className="btn ghost small" onClick={() => setSoundOn(false)}>🔊 Reading payments aloud · Turn off</button>
             ) : (
               <button
-                className="link"
+                className="btn ghost small"
                 onClick={() => {
                   setSoundError(null);
                   setSoundOn(true);
                   announce("test");
                 }}
               >
-                🔈 Turn on announcements
+                🔈 Read payments out loud
               </button>
             )}
           </p>
@@ -199,8 +201,13 @@ export default function LiveBill() {
             <div className="join">
               {joinUrl && <QR value={joinUrl} alt="QR code to join this bill" />}
               <div>
-                <h2>Scan to pay {host} back</h2>
-                <p className="muted" style={{ margin: 0 }}>Tap what you ordered and pay your share in a second.</p>
+                <h2>Friends: scan this to pay {host} back</h2>
+                <ol className="mini-steps">
+                  <li>Open your phone's camera and point it here</li>
+                  <li>Tap the food you ordered</li>
+                  <li>Tap <strong>Pay {host} back</strong></li>
+                </ol>
+                <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>
               </div>
             </div>
           )}
@@ -215,11 +222,12 @@ export default function LiveBill() {
             <span style={{ width: `${pct}%` }} />
           </div>
 
-          {s.unclaimedCount > 0 && !s.splitLeftovers && (
+          {s.unclaimedCount > 0 && !s.splitLeftovers && s.guests.length > 0 && (
             <div className="leftovers">
               <p style={{ margin: 0 }}>
-                <strong>{s.unclaimedCount} unclaimed {s.unclaimedCount === 1 ? "item" : "items"}</strong> ({money(s.unclaimedTotal)})
+                <strong>{s.unclaimedCount} {s.unclaimedCount === 1 ? "item nobody has claimed" : "items nobody has claimed"}</strong> ({money(s.unclaimedTotal)})
               </p>
+              {hostCanEdit && <p className="muted" style={{ margin: 0, fontSize: "0.85rem", flexBasis: "100%" }}>Shared something? Split it between everyone, or pay for it yourself.</p>}
               {hostCanEdit ? (
                 <div className="row">
                   {!sharesLocked && (
@@ -255,7 +263,7 @@ export default function LiveBill() {
                 <span className="stamp muted-stamp">Covered</span>
               </span>
             </div>
-            {s.guests.length === 0 && <p className="muted">Nobody has joined yet.</p>}
+            {s.guests.length === 0 && <p className="muted waiting"><span className="spinner small" aria-hidden="true" /> Waiting for friends to scan the code…</p>}
             {s.guests.map((g) => {
               const sig = g.settled && g.owed > 0 ? latestSignature(g.name, payments) : null;
               return (
@@ -264,7 +272,7 @@ export default function LiveBill() {
                     <span className="person-name">{g.name}</span>
                     {sig && (
                       <a className="chain-link" href={explorerTx(sig)} target="_blank" rel="noreferrer">
-                        View transaction ↗
+                        See proof of payment ↗
                       </a>
                     )}
                   </span>
