@@ -307,7 +307,7 @@ export default function LiveBill() {
                   <li>{s.evenSplit ? "Enter your name" : "Tap what was yours (shared things too)"}</li>
                   <li>Tap <strong>Pay {host} back</strong></li>
                 </ol>
-                <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>
+                <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed to claim your share. Paying back needs a Solana wallet.</p>
                 <div className="share-row">
                   <button className="btn ghost small" onClick={shareBill}>📤 Send to group chat</button>
                   {shareNote && <span className="share-note" role="status">{shareNote}</span>}
