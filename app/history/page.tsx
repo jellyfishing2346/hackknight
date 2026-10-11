@@ -39,6 +39,9 @@ export default function History() {
   return (
     <main className="page wide">
       <Brand />
+      <p className="back-row">
+        <Link href="/" className="link back-link">← Back</Link>
+      </p>
       <h1>Your tabs</h1>
       <p className="lede">Every tab you've started on this device, and who still owes you.</p>
 

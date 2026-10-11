@@ -197,6 +197,11 @@ export default function LiveBill() {
   return (
     <main className="page wide">
       <Brand />
+      <p className="back-row">
+        <Link href={isHostDevice ? "/history" : "/"} className="link back-link">
+          {isHostDevice ? "← Your tabs" : "← Home"}
+        </Link>
+      </p>
       {isHostDevice && !s.settled && <Steps steps={["Snap", "Check", "Share"]} current={2} />}
       <div className="live">
         <div>

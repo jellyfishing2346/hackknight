@@ -241,6 +241,15 @@ export default function Claim() {
   const settled = !!me && me.owed > 0 && me.settled;
   const sig = latestSignature(name, payments);
 
+  /** Go back to the name step, e.g. to fix a typo or hand the phone to someone else. */
+  function changeName() {
+    try {
+      sessionStorage.removeItem(`tabby:${id}:name`);
+    } catch {}
+    setName("");
+    setNameInput("");
+  }
+
   function renderItems() {
     if (s.evenSplit) {
       return (
@@ -365,6 +374,9 @@ export default function Claim() {
   return (
     <main className="page">
       <Brand />
+      <p className="back-row">
+        <button className="link back-link" onClick={changeName}>← Back</button>
+      </p>
       {s.evenSplit ? (
         <Steps steps={EVEN_STEPS} current={1} />
       ) : (
@@ -373,7 +385,7 @@ export default function Claim() {
       <h1 style={{ fontSize: "2rem" }}>{s.evenSplit ? `Hi ${name}!` : `Hi ${name}, what's yours?`}</h1>
       <p className="lede" style={{ marginBottom: "1.5rem" }}>
         {s.evenSplit ? `${host} covered the bill for everyone.` : `${host} covered the bill.`}{" "}
-        <button className="link" onClick={() => { try { sessionStorage.removeItem(`tabby:${id}:name`); } catch {} setName(""); setNameInput(""); }}>
+        <button className="link" onClick={changeName}>
           Not {name}?
         </button>
       </p>
@@ -404,6 +416,9 @@ export default function Claim() {
 
       {payUrl && (
         <div className="panel" aria-live="polite">
+          <p className="back-row">
+            <button className="link back-link" onClick={() => setPayUrl(null)}>← Back to one-tap pay</button>
+          </p>
           <h2>Pay {host} back {money(left)}</h2>
           {hasPhantom ? (
             <button className="btn block" onClick={payWithPhantom} disabled={busy === "phantom"}>
