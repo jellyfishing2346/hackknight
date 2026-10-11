@@ -17,6 +17,9 @@ export default function History() {
   const [months, setMonths] = useState<MonthBucket[] | null>(null);
   const [trendsBusy, setTrendsBusy] = useState(false);
   const [trendsError, setTrendsError] = useState<string | null>(null);
+  const [insights, setInsights] = useState<string | null>(null);
+  const [insightsBusy, setInsightsBusy] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   useEffect(() => {
     const ids = readHistory();
@@ -80,9 +83,45 @@ export default function History() {
     }
   }
 
+  async function getInsights() {
+    if (!rows || rows.length === 0) return;
+    setInsightsBusy(true);
+    setInsightsError(null);
+    setInsights(null);
+    try {
+      const bills = rows.map(({ state }) => {
+        const s = split(state.bill, state.items, state.payments);
+        const outstanding = s.owedToHost + s.unassigned;
+        return {
+          title: state.bill.title,
+          date: state.bill.created_at,
+          total: s.total,
+          collected: s.collected,
+          toGo: Math.max(0, outstanding - s.collected),
+          settled: s.settled,
+          unpaid: s.guests.filter((g) => !g.settled && g.owed > 0).map((g) => ({ name: g.name, amount: Math.max(0, g.owed - g.paid) })),
+        };
+      });
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bills }),
+      });
+      const data = await readJson<{ summary: string }>(res);
+      setInsights(data.summary);
+    } catch (e) {
+      setInsightsError((e as Error).message);
+    } finally {
+      setInsightsBusy(false);
+    }
+  }
+
   return (
     <main className="page wide">
       <Brand />
+      <p className="back-row">
+        <Link href="/" className="link back-link">← Back</Link>
+      </p>
       <h1>Your tabs</h1>
       <p className="lede">Every tab you've started on this device, and who still owes you.</p>
 
@@ -94,13 +133,30 @@ export default function History() {
 
       {rows !== null && rows.length > 0 && (
         <div className="insights">
-          {!months && (
-            <button className="btn ghost small" onClick={getTrends} disabled={trendsBusy}>
-              {trendsBusy ? "Crunching…" : "📊 Spending trends"}
-            </button>
-          )}
+          <div className="row">
+            {!months && (
+              <button className="btn ghost small" onClick={getTrends} disabled={trendsBusy}>
+                {trendsBusy ? "Crunching…" : "📊 Spending trends"}
+              </button>
+            )}
+            {!insights && (
+              <button className="btn ghost small" onClick={getInsights} disabled={insightsBusy}>
+                {insightsBusy ? "Thinking…" : "✨ Get AI insights"}
+              </button>
+            )}
+          </div>
           {trendsError && <p className="error">{trendsError}</p>}
           {months && <TrendsChart months={months} />}
+          {insightsError && <p className="error">{insightsError}</p>}
+          {insights && (
+            <div className="insights-card">
+              <span className="insights-label">✨ Your spending, summarized</span>
+              <p>{insights}</p>
+              <button className="link quiet" onClick={getInsights} disabled={insightsBusy}>
+                {insightsBusy ? "Thinking…" : "Refresh"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
