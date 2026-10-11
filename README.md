@@ -2,224 +2,143 @@
 
 **Snap the receipt. Everyone pays their part.**
 
-Tabby splits a restaurant bill in seconds. The host photographs the receipt, Gemini reads every line item, and friends at the table scan a QR code, tap what they ordered, and pay their exact share with Solana Pay. Payments settle in about a second for a fraction of a cent, and the bill updates live as each person pays.
+Tabby is for the moment after a group dinner, a ski trip, or a shared grocery run, when one person has paid for everyone and now has to collect. The host snaps the receipt (or just says what everyone had), friends scan a QR code, tap what was theirs, and pay their exact share in about a second. Payments settle on Solana, every one carries an on-chain receipt, and the bill stamps itself **Settled** when the last person pays.
 
-Built in 48 hours at **Hack Knight Fall 2026** (Queens College).
+No app to install, no accounts, no math, no chasing.
 
-Tracks: Best Financial Hack · MLH Best Use of Solana · MLH Best Use of Gemini API
+**Live demo:** [hackknight.vercel.app](https://hackknight.vercel.app) (Solana devnet, test money only)
+
+Built in one weekend at **Hack Knight Fall 2026** (Queens College).
+Submitted to **Best Financial Hack**, **MLH Best Use of Solana**, **MLH Best Use of Gemini API**, and **MLH Best Use of ElevenLabs**.
 
 ---
 
 ## The problem
 
-Splitting a bill is awkward. One person fronts the whole check, then spends a week chasing friends on payment apps, doing tax and tip math by hand, and quietly eating the difference. Shared bills are small, frequent payments between friends, and the tools for them are either slow to settle or take a fee.
+Splitting a shared bill is a small payment problem that happens constantly, and it's still awkward. One person fronts the whole check. Then come the screenshots of the receipt, the tax-and-tip math done by hand on a phone calculator, the "who had the guac?" debate, and a week of reminders in the group chat. Often the person who paid quietly eats the difference rather than chase anyone.
+
+The tools people use today make this worse in specific ways. Payment apps don't know what anyone ordered, so someone has to do the math first. Transfers between different apps don't connect. And the person collecting has no single place that shows who has paid and who hasn't.
 
 ## What Tabby does
 
-1. **Snap.** The host takes a photo of the receipt. Gemini turns it into line items, tax, and tip. The host can fix anything that was misread before sharing.
-2. **Share.** The host's laptop shows the bill and a QR code for the table.
-3. **Claim.** Each friend scans the QR code, enters their name, and taps the items they ordered. Tax and tip are split in proportion to what each person ordered, so nobody does math.
-4. **Pay.** Each person taps "Pay my share," approves the payment in their Phantom wallet, and it lands on Solana in about a second.
-5. **Settle.** The host's screen stamps each person **Paid** the moment their payment confirms, with a running total of how much has been collected.
+**For the person who paid (the host)**
 
-## Why Solana
+- **Three ways to start.** Take a photo of the receipt and Gemini reads every line, the tax, and the tip. Or tap the mic and just say it: *"Two pizzas at 18 each, wings for 12, 20% tip, split four ways. I'm Sam and I paid."* Or type the items in.
+- **A receipt check.** After a photo scan, Tabby compares what it read against the total printed on the receipt and flags any mismatch, so a misread line doesn't silently cost someone money.
+- **Two ways to split.** By what each person had (shared dishes divide automatically between everyone who had them), or evenly between a set number of people.
+- **A live bill.** A QR code friends can scan, a progress bar, and a list of who has paid. Paid stamps land in real time, and the bill reads each payment out loud ("Ana just paid Sam back 27 dollars and 21 cents").
+- **Gentle follow-up.** One tap sends the bill to the group chat for friends who weren't at the table. **Remind** writes a polite message with each person's exact amount and opens Messages, WhatsApp, or email with it filled in, or records a friendly voice note to send instead.
+- **Your tabs.** Every bill you've hosted on this device, with what's been collected and what's still owed.
 
-- **Near-zero fees.** A $9 share costs a fraction of a cent to send, so small, frequent payments between friends make sense.
-- **Instant settlement.** Payments confirm in about a second, fast enough to watch happen at the table.
-- **Verifiable payments.** Each payment request carries a unique `reference` address. Tabby finds the exact transaction on-chain and checks it paid the right amount to the right wallet, with no payment processor in the middle.
-- **No custom smart contract needed.** Solana Pay transfer requests move money directly from each friend's wallet to the host's wallet.
+**For everyone else**
 
-## Architecture
+- Scan the QR code, type a name, and tap what was yours. Or tap the mic and say *"I had the burrito and half the guac,"* in any language, and Tabby finds those items for you to confirm.
+- See exactly what you owe: your items, your share of anything you split, and your proportional share of tax and tip.
+- Pay in one tap. The payment settles in about a second, and you get a link to the on-chain proof.
+
+## How we used each technology
+
+### Solana: settlement and proof
+
+Every repayment is a real token transfer on Solana devnet, from the friend to the host. We use **Solana Pay** conventions throughout: each payment request gets a unique `reference` address, and the server finds the transaction carrying that reference and runs Solana Pay's `validateTransfer` to confirm the right amount reached the right wallet before marking anyone paid. There is no custom smart contract and no database flag a person could flip; "Paid" means the chain says so.
+
+Each payment also carries an **on-chain memo** such as `Tabby: Ana paid Sam back · Weekend ski trip`, so the receipt is readable by anyone on Solana Explorer, not just inside our app.
+
+There are three ways to pay, so nobody gets stuck: a one-tap payment that needs no wallet (for the demo, our server funds a one-time wallet with test tokens and signs for it), **Pay with Phantom** (our server builds the transaction and the guest's wallet signs it), and a standard **Solana Pay QR** any compatible wallet can scan.
+
+Why Solana for this: shared bills are small, frequent payments between friends. Settlement in about a second at a fraction of a cent means paying back $12.04 is as easy as tapping a button, and the public record removes any "did you get my payment?" back-and-forth.
+
+### Gemini: understanding receipts and people
+
+Gemini does three jobs, all using **structured output** (a JSON schema) so the app receives data it can check rather than free text:
+
+1. **Reading receipts.** A photo becomes line items, tax, tip, and the printed total.
+2. **Tabby AI.** A conversation becomes a bill. It asks for missing prices instead of guessing, understands percentages, quantities ("two pizzas at 18 each" becomes two $18 lines so two people can each claim one), even splits, and who paid, and it replies in the language you used.
+3. **"Tell Tabby what you had."** A guest's words are matched to the bill's actual item IDs. Gemini can only choose from items that exist, and the guest confirms before anything is claimed.
+
+We never let the model do arithmetic that matters. Gemini reports "8% tax" as a percentage and our code computes the dollars; every price is validated before it's used.
+
+### ElevenLabs: voice in and voice out
+
+- **Speech to text (Scribe)** powers the mic in Tabby AI and in "Tell Tabby what you had." It detects the spoken language automatically, so people can talk in whatever language they're comfortable with.
+- **Text to speech** reads payments aloud on the live bill and records reminder voice notes. The server writes every sentence from real bill data, so the voice can't be made to say arbitrary text.
+
+## How it works, in one picture
 
 ```mermaid
-flowchart LR
-    A[Host snaps receipt] --> B[/api/parse<br/>Gemini reads items/]
-    B --> C[(Supabase<br/>bills, items, payments)]
-    C --> D[Live bill screen<br/>on host laptop]
-    D -- table QR --> E[Friend's phone<br/>claims items]
-    E --> F[/api/bills/id/pay<br/>Solana Pay request + reference/]
-    F -- payment QR or wallet link --> G[Phantom wallet<br/>approves transfer]
-    G --> H[(Solana devnet)]
-    D -- polls every 2s --> I[/api/bills/id<br/>findReference + validateTransfer/]
-    I --> H
-    I -- marks paid --> C
+sequenceDiagram
+    participant H as Host (phone or laptop)
+    participant T as Tabby (Next.js on Vercel)
+    participant G as Gemini
+    participant F as Friend (phone)
+    participant S as Solana devnet
+
+    H->>T: Receipt photo, or "two pizzas at 18..."
+    T->>G: Image or words + JSON schema
+    G-->>T: Items, tax, tip
+    H->>T: Confirm, choose split, share
+    T-->>H: Live bill with QR code
+    F->>T: Scan QR, pick items (or say them)
+    F->>T: Pay my share
+    T->>S: Transfer + reference + memo
+    S-->>T: Confirmed (~1 second)
+    T->>S: Find by reference, validateTransfer
+    T-->>H: Paid stamp, read aloud
 ```
 
-### How a payment is verified
+More detail: **[Architecture](docs/ARCHITECTURE.md)** · **[How the split is calculated](docs/SPLIT_MATH.md)**
 
-1. When someone taps "Pay my share," the server computes their share, generates a fresh random `reference` address, and saves a pending payment in Supabase.
-2. It builds a Solana Pay URL containing the recipient (host wallet), the amount, the token, and that reference. The phone shows it as an "Open in wallet" link and a QR code.
-3. The wallet sends a token transfer that includes the reference address.
-4. Every couple of seconds, the bill endpoint calls `findReference` to look for a transaction carrying that reference, then `validateTransfer` to confirm the amount and recipient. If both pass, the payment is marked paid and the transaction signature is stored.
+## Getting it running
 
-## Tech stack
-
-| Layer | Technology |
-|---|---|
-| Frontend and API | Next.js 15 (App Router), React 19, TypeScript |
-| Receipt reading | Google Gemini (`@google/genai`) with a structured JSON schema |
-| Payments | Solana Pay v1 (`@solana/pay`, `@solana/kit`) on devnet |
-| Database | Supabase (Postgres) |
-| Devnet tooling | `@solana/web3.js`, `@solana/spl-token` |
-| RPC | Helius devnet RPC |
-
----
-
-## Running it locally
-
-You need Node 20 or newer (`node -v` to check) and a Phantom wallet.
-
-### 1. Install
+You'll need Node 20+, a free Supabase project, a Gemini API key, and (optionally) an ElevenLabs key.
 
 ```bash
-git clone https://github.com/jellyfishing2346/hackknight.git
-cd hackknight
 npm install --legacy-peer-deps
-cp .env.example .env.local
-```
-
-Ignore the "vulnerabilities" warning after install, and don't run `npm audit fix --force`. It upgrades packages to breaking versions.
-
-### 2. Fill in `.env.local`
-
-| Variable | Where to get it |
-|---|---|
-| `GEMINI_API_KEY` | aistudio.google.com/apikey (use a personal Google account; school accounts often block it) |
-| `GEMINI_MODEL` | Leave as `gemini-2.5-flash` |
-| `SUPABASE_URL` | Supabase → Connect, or Project Settings → Data API → Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → **secret** key (`sb_secret_...`) or legacy **service_role**. Not the publishable or anon key. |
-| `SOLANA_RPC_URL` | helius.dev → switch to **Devnet** → RPCs → copy the URL |
-| `MERCHANT_WALLET` | The host's Phantom address (Receive → Solana → Copy), with Testnet Mode on and Solana Devnet selected |
-| `SPLIT_TOKEN_MINT` | Printed by `npm run devnet init` in step 4 |
-
-Each variable should appear only once, and each URL should contain `https://` only once.
-
-### 3. Create the database tables
-
-In Supabase, open **SQL Editor → New query**, paste the contents of `supabase/schema.sql`, and click **Run**. You should see "Success. No rows returned," and **Table Editor** should list `bills`, `items`, and `payments`.
-
-### 4. Create the test money
-
-The app uses its own devnet token as a stand-in for USDC, so demo wallets can be topped up without limits.
-
-```bash
-npm run devnet init
-```
-
-The first run creates an admin wallet (saved to `.devnet-admin.json`) and prints its address. The automatic airdrop is almost always rate-limited, so fund it by hand:
-
-1. Open **faucet.solana.com** in Safari or a private window (browser extensions can block its bot check and grey out the button).
-2. Sign in with GitHub for a higher limit.
-3. Paste the admin address, choose **Devnet** and **2.5 SOL**, and click **Confirm Airdrop**. Wait for "Airdrop successful."
-4. Check it arrived: `npm run devnet balance <admin address>`
-
-Then run `npm run devnet init` again and paste the printed `SPLIT_TOKEN_MINT=...` line into `.env.local`.
-
-### 5. Run
-
-Keep the app running in one terminal and use a second terminal (the **+** in VS Code's terminal panel) for everything else.
-
-```bash
+cp .env.example .env.local      # then fill it in
+npm run devnet init             # creates the devnet test token
 npm run dev
 ```
 
-Open http://localhost:3000 and click **Use a sample receipt** to try the flow without a photo.
+Then run `supabase/schema.sql` and both files in `supabase/migrations/` in the Supabase SQL editor. The full walkthrough, including every environment variable, deploying to Vercel, and funding demo wallets, is in **[Setup](docs/SETUP.md)**.
 
----
+## Documentation
 
-## Setting up demo wallets
-
-Each wallet that will pay needs a little devnet SOL for fees and some test tokens.
-
-1. In Phantom, create an account for paying (avatar → Add Account → Create New Account). Turn on Settings → Developer Settings → **Testnet Mode** and select **Solana Devnet**.
-2. Copy its address: **Receive → Solana → Copy**. Send it to your laptop.
-3. Fund it, replacing the address with the real one:
-   ```bash
-   npm run devnet fund 7xKX...fulladdress 200
-   ```
-   You should see `Sent 0.05 SOL and 200 test tokens to ...`
-
-To pay: on the claim screen, tap **Pay my share**, then in Phantom tap the **scan** icon, scan the payment QR, and approve. Payment QR codes work even when the app runs on localhost, because they only carry payment details and the phone sends the transaction straight to Solana.
-
-### Phones joining the table
-
-The table QR points at the app's own address, so phones can't open it while the app runs on `localhost`. For a real table demo, deploy to Vercel: import the GitHub repo, add every variable from `.env.local` under **Settings → Environment Variables**, and deploy. Open the bill from the Vercel URL, and phones can scan the table QR.
-
----
+| Guide | What's in it |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | How the pieces fit, the data model, the three payment paths, how payments are verified, and the security model |
+| [How the split is calculated](docs/SPLIT_MATH.md) | The exact rules for items, shared dishes, tax, tip, leftovers, even splits, and rounding, with a worked example |
+| [Setup](docs/SETUP.md) | Local development, database, devnet test money, deployment, and troubleshooting |
+| [API reference](docs/API.md) | Every endpoint, what it expects, and what it returns |
+| [Demo guide](docs/DEMO.md) | The pitch script, a pre-demo checklist, and backup plans |
 
 ## Project structure
 
 ```
 app/
-  page.tsx                     Host screen: snap or type the receipt, review, share
-  bill/[id]/page.tsx           Live bill screen for the laptop on the table
-  bill/[id]/claim/page.tsx     Phone screen: claim items, see your share, pay
-  components/useBill.ts        Polls the bill every 2 seconds
-  components/QR.tsx            Renders QR codes
-  api/parse/route.ts           Receipt photo → Gemini → line items, tax, tip
-  api/bills/route.ts           Create a bill and its items
-  api/bills/[id]/route.ts      Bill state; checks Solana for pending payments
-  api/bills/[id]/pay/route.ts  Create a Solana Pay request for one person's share
-  api/items/[id]/claim/route.ts Claim or release an item
+  page.tsx                  Home and review screens (host)
+  bill/[id]/page.tsx        Live bill (host)
+  bill/[id]/claim/page.tsx  Guest screen
+  history/page.tsx          Your tabs
+  settings/page.tsx         Profile
+  components/               Tabby AI chat, guest voice matching, reminder panel, QR, shared hooks
+  api/                      Server routes: receipts, AI, voice, bills, payments
 lib/
-  split.ts                     Share math: items plus proportional tax and tip
-  solana.ts                    Payment URLs, references, on-chain verification
-  bills.ts                     Loads a bill from Supabase
-  supabase.ts                  Server-side Supabase client
-  types.ts                     Shared types
-scripts/setup-devnet.mjs       Devnet token creation, wallet funding, balances
-supabase/schema.sql            Database tables
+  split.ts                  All split math (pure functions, no I/O)
+  solana.ts, transfer.ts    Solana Pay URLs, transaction building, on-chain verification
+  payments.ts               Shared logic for every way to pay
+  assistant.ts              Cleans and checks Tabby AI's draft bills
+  ratelimit.ts, ai.ts       Abuse protection and graceful AI fallbacks
+supabase/                   Schema and migrations
+scripts/setup-devnet.mjs    Creates and funds the devnet test token
 ```
 
-## API reference
+## What we'd build next
 
-| Method and route | Body | Returns |
-|---|---|---|
-| `POST /api/parse` | `{ image: base64, mimeType }` | `{ merchant, items: [{ name, price }], tax, tip }` |
-| `POST /api/bills` | `{ title, tax, tip, items }` | `{ id }` |
-| `GET /api/bills/:id` | — | `{ bill, items, payments }`; also marks newly confirmed payments as paid |
-| `POST /api/bills/:id/pay` | `{ name }` | `{ payment, url }` where `url` is the Solana Pay link |
-| `POST /api/items/:id/claim` | `{ name, claim: true or false }` | `{ ok: true }`, or 409 if someone else claimed it |
-
-## Keeping secrets safe
-
-`.gitignore` excludes `.env.local` (all API keys) and `.devnet-admin.json` (the admin wallet's private key). Verify with:
-
-```bash
-git check-ignore -v .env.local .devnet-admin.json
-```
-
-Share keys with teammates by direct message only. If a key is ever pushed or posted publicly, generate a new one in that service's dashboard and delete the old one; removing it from GitHub isn't enough because it stays in the history.
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| `zsh: event not found` | zsh treats `!` as special. Run commands one line at a time, or avoid `!` in pasted commands. |
-| `unzip: cannot find or open Users/...` | Paths need a leading `/` or `~`, for example `~/Downloads/file.zip`. |
-| `The airdrop was rate-limited` / `429 Too Many Requests` | Use faucet.solana.com by hand (step 4), or ask a mentor to send 1 devnet SOL to the admin address. Helius free accounts don't do airdrops. |
-| Faucet **Confirm Airdrop** button stays grey | Select an amount, re-paste the address with no spaces, or open the faucet in Safari or a private window. |
-| `Error: Non-base58 character` | The command still has placeholder text. Paste a real Solana address. |
-| `Set MERCHANT_WALLET in .env.local` | Fill in the host's Phantom devnet address and save the file. |
-| Site stops loading after running another command | That terminal was running `npm run dev`. Restart it and use a second terminal for other commands. |
-| "Couldn't read the receipt" | Try a flatter, brighter photo, or tap **Type it in instead**. Every item can be edited on the review screen. |
-| Payment approved but never marked Paid | Check the host wallet received tokens with `npm run devnet balance <MERCHANT_WALLET>`. Make sure `SOLANA_RPC_URL` is the Helius devnet URL, and check the `npm run dev` terminal for errors. |
-| Phantom won't scan or shows the wrong network | Turn on Testnet Mode and select Solana Devnet, and make sure the funded account is the one selected. |
-
----
-
-## What's next
-
-- Splitting a single item between several people
-- Real USDC on mainnet, with a one-tap onboarding flow for friends without a wallet
-- Saved groups and running balances for roommates and recurring dinners
-- Settle-up reminders and payment history
+- **Real money.** Switch from a devnet test token to USDC on mainnet, with a cash-out path to a bank account.
+- **Automatic reminders.** Let guests leave a phone number or email so Tabby can nudge them itself.
+- **Running balances.** Track who owes whom across many tabs with the same friends, settled in one payment.
+- **More than one payer.** Handle the night where one person paid for dinner and another paid for drinks.
 
 ## Team
 
-- Faizan Khan
-- Teammate 2
-- Teammate 3
-- Teammate 4
+Built by **Faizan Khan**, **Tobiloba Onabanjo**, and **Mohamed Awad**.
