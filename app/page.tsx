@@ -54,6 +54,8 @@ export default function Host() {
   const [people, setPeople] = useState(4);
   const [walletMode, setWalletMode] = useState<"demo" | "own">("demo");
   const [aiOpen, setAiOpen] = useState(false);
+  // The total printed on a scanned receipt, to double-check what Tabby read.
+  const [printedTotal, setPrintedTotal] = useState<number | null>(null);
 
   // Prefill from the Tabby profile, so returning hosts don't retype their name and wallet.
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function Host() {
     setItems(r.items.map((i) => ({ name: i.name, price: i.price.toFixed(2) })));
     setTax(r.tax.toFixed(2));
     setTip(r.tip.toFixed(2));
+    setPrintedTotal(r.printedTotal && r.printedTotal > 0 ? r.printedTotal : null);
     setStage("review");
   }
 
@@ -223,6 +226,14 @@ export default function Host() {
               <span>Total</span>
               <span className="price">{money(total)}</span>
             </div>
+            {printedTotal != null &&
+              (Math.abs(total - printedTotal) <= 0.02 ? (
+                <p className="total-check ok">✓ Matches the receipt's total</p>
+              ) : (
+                <p className="total-check warn" role="status">
+                  ⚠️ These add up to {money(total)}, but the receipt says {money(printedTotal)}. Check for a missed or misread item.
+                </p>
+              ))}
           </div>
         </div>
 

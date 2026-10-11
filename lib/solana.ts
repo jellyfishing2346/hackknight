@@ -17,7 +17,7 @@ export async function newReference(): Promise<string> {
 }
 
 /** The solana: URL a wallet opens to pay this share. Also what the QR code encodes. */
-export function paymentURL(recipient: string, amount: number, reference: string, payerName: string): string {
+export function paymentURL(recipient: string, amount: number, reference: string, payerName: string, memo?: string): string {
   return encodeURL({
     recipient: address(recipient),
     amount,
@@ -25,6 +25,8 @@ export function paymentURL(recipient: string, amount: number, reference: string,
     reference: address(reference),
     label: "Tabby",
     message: `${payerName} paying back their share`,
+    // Wallets add this as an on-chain note just before the transfer.
+    ...(memo ? { memo } : {}),
   }).toString();
 }
 

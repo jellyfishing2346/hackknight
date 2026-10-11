@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/ratelimit";
 
 export const maxDuration = 30;
 
 /** Voice to text with ElevenLabs Scribe. The browser sends a short recording; we return the words. */
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "transcribe", 12);
+  if (limited) return limited;
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "Voice input isn't set up: add ELEVENLABS_API_KEY." }, { status: 503 });
 
@@ -24,6 +27,9 @@ export async function POST(req: Request) {
   if (!res.ok) {
     const detail = await res.text();
     console.error("ElevenLabs speech-to-text failed:", res.status, detail);
+    if (res.status === 429) {
+      return NextResponse.json({ error: "Voice input is busy right now. Type it instead." }, { status: 503 });
+    }
     const hint =
       res.status === 401 || res.status === 403
         ? " Your ElevenLabs key may not have Speech to Text access: turn it on in ElevenLabs → Developers → API Keys."

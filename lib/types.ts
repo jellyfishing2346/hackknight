@@ -42,4 +42,6 @@ export type ParsedReceipt = {
   items: { name: string; price: number }[];
   tax: number;
   tip: number;
+  /** The grand total printed on the receipt, when Gemini could read one. Used to double-check the scan. */
+  printedTotal?: number;
 };

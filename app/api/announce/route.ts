@@ -1,5 +1,6 @@
 import { loadBill } from "@/lib/bills";
-import { sameName, split } from "@/lib/split";
+import { amountLeft, sameName, split } from "@/lib/split";
+import { rateLimit } from "@/lib/ratelimit";
 
 export const maxDuration = 30;
 
@@ -21,10 +22,12 @@ const cache = new Map<string, ArrayBuffer>();
  * so this can't be used to make the voice say arbitrary text.
  */
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "announce", 25);
+  if (limited) return limited;
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return Response.json({ error: "Announcements aren't set up: add ELEVENLABS_API_KEY." }, { status: 503 });
 
-  const { billId, kind, name } = (await req.json()) as { billId?: string; kind?: "paid" | "settled" | "test"; name?: string };
+  const { billId, kind, name } = (await req.json()) as { billId?: string; kind?: "paid" | "settled" | "test" | "reminder"; name?: string };
   if (!billId) return Response.json({ error: "Missing bill." }, { status: 400 });
   const state = await loadBill(billId);
   if (!state) return Response.json({ error: "Bill not found." }, { status: 404 });
@@ -41,6 +44,12 @@ export async function POST(req: Request) {
   } else if (kind === "settled") {
     if (!s.settled) return Response.json({ error: "Not settled yet." }, { status: 409 });
     text = `That's everyone. ${host} is all square.`;
+  } else if (kind === "reminder") {
+    // A voice note the host can send: the amount comes from the bill, not from the request.
+    const g = s.guests.find((x) => sameName(x.name, name));
+    const left = g ? amountLeft(s, g.name) : 0;
+    if (!g || left <= 0) return Response.json({ error: "They don't owe anything right now." }, { status: 409 });
+    text = `Hey ${g.name}! Friendly reminder from ${host}. Your share of ${state.bill.title} is ${spoken(left)}. You can pay it back in one tap with the link ${host} sent you. Thanks!`;
   } else {
     return Response.json({ error: "Unknown announcement." }, { status: 400 });
   }
