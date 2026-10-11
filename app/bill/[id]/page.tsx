@@ -212,6 +212,9 @@ export default function LiveBill() {
       {isHostDevice && !s.settled && <Steps steps={["Snap", "Check", "Share"]} current={2} />}
       <div className="live">
         <div>
+          {hostCanEdit && !s.evenSplit && !(sharesLocked && s.splitLeftovers) && (
+            <p className="callout">👆 <strong>You're the host.</strong> Tap anything you ate or shared. Your part is already covered, so you won't pay for it.</p>
+          )}
           <div className="receipt-wrap">
             <div className="receipt">
               <p className="receipt-title">{bill.title}</p>
@@ -264,9 +267,6 @@ export default function LiveBill() {
               <div className="line total"><span>Total</span><span className="price">{money(s.total)}</span></div>
             </div>
           </div>
-          {hostCanEdit && !s.evenSplit && !(sharesLocked && s.splitLeftovers) && (
-            <p className="callout">👆 <strong>You're the host.</strong> Tap anything you ate or shared. Your part is already covered, so you won't pay for it.</p>
-          )}
         </div>
 
         <section>
@@ -311,7 +311,7 @@ export default function LiveBill() {
                 <h2>Friends: scan this to pay {host} back</h2>
                 <ol className="mini-steps">
                   <li>Open your phone's camera and point it here</li>
-                  <li>{s.evenSplit ? "Enter your name" : "Tap your share of the host's tab (shared items too)"}</li>
+                  <li>{s.evenSplit ? "Enter your name" : "Tap what was yours (shared things too)"}</li>
                   <li>Tap <strong>Pay {host} back</strong></li>
                 </ol>
                 <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.85rem" }}>No app or account needed.</p>

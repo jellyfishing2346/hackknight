@@ -257,3 +257,67 @@ h2 { font-size: 1.35rem; letter-spacing: -0.02em; font-weight: 800; margin: 0 0 
 /* The host's row describes their role, not a payment */
 .host-tag { display: inline-block; font-size: 0.78rem; font-weight: 700; color: var(--muted); border: 1.5px solid #b9bfb9; border-radius: 999px; padding: 0.1rem 0.6rem; }
 .amt-note { font-family: var(--sans); font-size: 0.8rem; color: var(--muted); }
+
+/* ---------- Clarity pass 2: for people who've never used an app like this ---------- */
+
+/* Home: three equal ways to start */
+.start-options { display: grid; gap: 0.75rem; }
+.start-title { margin: 0 0 0.1rem; font-weight: 700; font-size: 1.05rem; }
+.start-card {
+  position: relative; display: flex; align-items: center; gap: 1rem; width: 100%; text-align: left;
+  padding: 1rem 1.1rem; border-radius: 16px; border: 2px solid var(--rule); background: var(--paper);
+  color: var(--ink); cursor: pointer; font: inherit; min-height: 4.5rem;
+}
+.start-card:hover { border-color: var(--ink); }
+.start-card.primary { border-color: var(--ink); box-shadow: 0 2px 0 var(--ink); }
+.start-card input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.start-card:focus-within { outline: 3px solid var(--ink); outline-offset: 2px; }
+.start-icon { font-size: 1.9rem; line-height: 1; flex: none; width: 2.4rem; text-align: center; }
+.start-text { display: grid; gap: 0.15rem; }
+.start-text strong { font-size: 1.1rem; }
+.start-text span { font-size: 0.9rem; color: var(--muted); }
+.start-example { margin: 0.4rem 0 0; font-size: 0.9rem; color: var(--muted); text-align: center; }
+
+/* Header links: grouped, tappable */
+.page-head { flex-wrap: wrap; }
+.top-nav { display: flex; gap: 0.5rem; }
+.nav-pill {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; border-radius: 999px;
+  background: var(--paper); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 0.9rem;
+  border: 1.5px solid var(--rule);
+}
+.nav-pill:hover { border-color: var(--ink); }
+
+/* Forms: real boxes you can obviously type into (receipt editing keeps its receipt look) */
+.field input:not(.num), .field textarea {
+  width: 100%; font-family: var(--sans); font-size: 1rem; border: 2px solid var(--rule); border-radius: 12px;
+  padding: 0.7rem 0.8rem; background: var(--paper); color: var(--ink);
+}
+.field input.mono { font-family: var(--mono); font-size: 0.9rem; }
+.field input:not(.num):focus, .field textarea:focus { outline: none; border-color: var(--ink); }
+.field label, .field .field-label { font-size: 0.95rem; color: var(--ink); font-weight: 600; }
+
+/* Review: long item names wrap instead of being cut off */
+.edit-line { align-items: start; }
+.edit-line textarea.item-name {
+  width: 100%; resize: none; overflow: hidden; field-sizing: content;
+  font-family: var(--mono); font-size: 0.95rem; line-height: 1.35; border: 0; border-bottom: 2px solid var(--rule);
+  padding: 0.4rem 0.1rem; background: transparent; border-radius: 0; color: var(--ink);
+}
+.edit-line textarea.item-name:focus { outline: none; border-bottom-color: var(--ink); }
+.edit-line .remove { margin-top: 0.35rem; }
+
+/* Host screen on a phone: the QR code and sharing come first, the receipt after */
+@media (max-width: 52rem) {
+  .live > section { order: -1; }
+}
+@media (max-width: 30rem) {
+  .join { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .join img { width: 13rem; height: 13rem; }
+  .join .mini-steps { text-align: left; display: inline-block; }
+  .join .share-row { justify-content: center; }
+}
+
+/* The host hint now sits above the receipt */
+.live .callout { margin: 0 0 1rem; }
+.edit-line > span:first-child { padding-top: 0.45rem; }

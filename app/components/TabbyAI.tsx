@@ -27,8 +27,22 @@ function pickMime() {
  * "Tabby AI": describe a bill in plain words, typed or spoken, and get a ready-to-use bill.
  * Speech is transcribed by ElevenLabs Scribe; the bill is built by Gemini.
  */
-export function TabbyAI({ onUse }: { onUse: (draft: TabbyDraft) => void }) {
-  const [open, setOpen] = useState(false);
+export function TabbyAI({
+  onUse,
+  open: openProp,
+  onOpenChange,
+  hideLauncher = false,
+}: {
+  onUse: (draft: TabbyDraft) => void;
+  /** Control the panel from the page (e.g. a "Just say it" button). Optional. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the floating "Tabby AI" bubble when the page has its own button. */
+  hideLauncher?: boolean;
+}) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v));
   const [messages, setMessages] = useState<Msg[]>([{ role: "assistant", text: GREETING }]);
   const [draft, setDraft] = useState<TabbyDraft | null>(null);
   const [input, setInput] = useState("");
@@ -147,7 +161,7 @@ export function TabbyAI({ onUse }: { onUse: (draft: TabbyDraft) => void }) {
 
   return (
     <>
-      {!open && (
+      {!open && !hideLauncher && (
         <button className="ai-fab" onClick={() => setOpen(true)} aria-haspopup="dialog">
           <span aria-hidden="true">✨</span> Tabby AI
         </button>

@@ -53,6 +53,7 @@ export default function Host() {
   const [splitMode, setSplitMode] = useState<"items" | "even">("items");
   const [people, setPeople] = useState(4);
   const [walletMode, setWalletMode] = useState<"demo" | "own">("demo");
+  const [aiOpen, setAiOpen] = useState(false);
 
   // Prefill from the Tabby profile, so returning hosts don't retype their name and wallet.
   useEffect(() => {
@@ -177,7 +178,20 @@ export default function Host() {
             <hr className="rule" />
             {items.map((d, i) => (
               <div className="edit-line" key={i}>
-                <input value={d.name} onChange={(e) => update(i, { name: e.target.value })} aria-label="Item name" />
+                <textarea
+                  className="item-name"
+                  rows={1}
+                  value={d.name}
+                  onChange={(e) => update(i, { name: e.target.value })}
+                  ref={(el) => {
+                    // Grow to fit long names instead of cutting them off.
+                    if (el) {
+                      el.style.height = "auto";
+                      el.style.height = `${el.scrollHeight}px`;
+                    }
+                  }}
+                  aria-label="Item name"
+                />
                 <input
                   className="num"
                   inputMode="decimal"
@@ -213,6 +227,11 @@ export default function Host() {
         </div>
 
         <div className="host-card">
+          <div className="field">
+            <label htmlFor="host">You paid. What's your name?</label>
+            <input id="host" autoComplete="given-name" placeholder="e.g. Sam" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+            <span className="hint">Friends will see "Pay {hostName.trim() || "you"} back".</span>
+          </div>
           <div className="field">
             <span className="field-label">How should everyone split it?</span>
             <div className="choice" role="radiogroup" aria-label="How to split the bill">
@@ -250,12 +269,7 @@ export default function Host() {
             )}
           </div>
           <div className="field">
-            <label htmlFor="host">You paid the bill. What's your name?</label>
-            <input id="host" autoComplete="given-name" placeholder="e.g. Sam" value={hostName} onChange={(e) => setHostName(e.target.value)} />
-            <span className="hint">Friends will see "Pay {hostName.trim() || "you"} back".</span>
-          </div>
-          <div className="field">
-            <label id="wallet-label">Where should friends pay you back?</label>
+            <label id="wallet-label">Where should the money go?</label>
             <div className="row" role="radiogroup" aria-labelledby="wallet-label">
               <button
                 type="button"
@@ -264,7 +278,7 @@ export default function Host() {
                 aria-checked={walletMode === "demo"}
                 onClick={() => chooseWalletMode("demo")}
               >
-                Demo wallet
+                Tabby demo account
               </button>
               <button
                 type="button"
@@ -273,14 +287,14 @@ export default function Host() {
                 aria-checked={walletMode === "own"}
                 onClick={() => chooseWalletMode("own")}
               >
-                My Solana wallet
+                My own crypto wallet
               </button>
             </div>
             {walletMode === "own" && (
               <input
                 id="wallet"
                 className="mono"
-                placeholder="Your Solana address"
+                placeholder="Paste your Solana wallet address"
                 value={hostWallet}
                 onChange={(e) => setHostWallet(e.target.value)}
                 spellCheck={false}
@@ -291,8 +305,8 @@ export default function Host() {
             )}
             <span className="hint">
               {walletMode === "demo"
-                ? "Friends' repayments go to the team's shared demo wallet."
-                : "Friends' repayments go straight to this address."}
+                ? "Best for trying Tabby out. Nothing to set up."
+                : "Friends' payments go straight to this wallet."}
             </span>
           </div>
         </div>
@@ -313,8 +327,10 @@ export default function Host() {
     <main className="page">
       <div className="page-head">
         <Brand />
-        <Link href="/settings" className="nav-link">Profile</Link>
-        <Link href="/history" className="nav-link">Your tabs →</Link>
+        <nav className="top-nav" aria-label="Your account">
+          <Link href="/history" className="nav-pill"><span aria-hidden="true">🧾</span> Your tabs</Link>
+          <Link href="/settings" className="nav-pill"><span aria-hidden="true">👤</span> Profile</Link>
+        </nav>
       </div>
       <Steps steps={HOST_STEPS} current={0} />
       <h1>Snap the receipt. Everyone pays their part.</h1>
@@ -328,24 +344,36 @@ export default function Host() {
           <span className="muted">This takes a few seconds.</span>
         </div>
       ) : (
-        <label className="drop">
-          <span className="drop-icon" aria-hidden="true">📷</span>
-          <strong>Take a photo of the receipt</strong>
-          <span className="muted">or choose one from your photos</span>
-          <span className="btn small" aria-hidden="true">Choose photo</span>
-          <input type="file" accept="image/*" capture="environment" onChange={(e) => onPhoto(e.target.files?.[0])} />
-        </label>
+        <div className="start-options">
+          <p className="start-title">How do you want to start?</p>
+          <label className="start-card primary">
+            <span className="start-icon" aria-hidden="true">📷</span>
+            <span className="start-text">
+              <strong>Snap the receipt</strong>
+              <span>Take a photo and Tabby reads every item.</span>
+            </span>
+            <input type="file" accept="image/*" capture="environment" onChange={(e) => onPhoto(e.target.files?.[0])} />
+          </label>
+          <button type="button" className="start-card" onClick={() => setAiOpen(true)}>
+            <span className="start-icon" aria-hidden="true">🎤</span>
+            <span className="start-text">
+              <strong>Just say it</strong>
+              <span>"Pizza for 18, wings for 12, split 4 ways." Talk or type, in any language.</span>
+            </span>
+          </button>
+          <button type="button" className="start-card" onClick={() => load({ merchant: "Tab", items: [{ name: "", price: 0 }], tax: 0, tip: 0 })}>
+            <span className="start-icon" aria-hidden="true">✏️</span>
+            <span className="start-text">
+              <strong>Type it in</strong>
+              <span>Add each item and price yourself.</span>
+            </span>
+          </button>
+          <p className="start-example">
+            Just looking? <button type="button" className="link" onClick={() => load(SAMPLE)}>See an example bill</button>
+          </p>
+        </div>
       )}
       {error && <p className="error">{error}</p>}
-
-      <div className="spacer" />
-      <p className="muted" style={{ margin: "0 0 0.6rem", fontSize: "0.9rem" }}>No receipt handy?</p>
-      <div className="row">
-        <button className="btn ghost" onClick={() => load({ merchant: "Tab", items: [{ name: "", price: 0 }], tax: 0, tip: 0 })}>
-          Type it in
-        </button>
-        <button className="btn ghost" onClick={() => load(SAMPLE)}>Try a sample receipt</button>
-      </div>
 
       <section className="how" aria-labelledby="how-title">
         <h2 id="how-title">How it works</h2>
@@ -355,7 +383,7 @@ export default function Host() {
           <li><strong>Everyone pays you back.</strong> One tap each, and you watch it land.</li>
         </ol>
       </section>
-      <TabbyAI onUse={applyAiDraft} />
+      <TabbyAI onUse={applyAiDraft} open={aiOpen} onOpenChange={setAiOpen} hideLauncher />
     </main>
   );
 }

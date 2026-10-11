@@ -266,7 +266,7 @@ export default function Claim() {
       <div className="receipt-wrap">
         <div className="receipt">
           <p className="receipt-title">{bill.title}</p>
-          <p className="receipt-sub">Tap everything that's yours or shared</p>
+          <p className="receipt-sub">Tap what's yours</p>
           <hr className="rule" />
           {items.map((i) => {
             const mine = hasClaimed(i, name);
@@ -372,7 +372,7 @@ export default function Claim() {
       )}
       <h1 style={{ fontSize: "2rem" }}>{s.evenSplit ? `Hi ${name}!` : `Hi ${name}, what's yours?`}</h1>
       <p className="lede" style={{ marginBottom: "1.5rem" }}>
-        {s.evenSplit ? `${host} covered the bill for everyone.` : `${host} covered the bill. Tap your items and pay ${host} back.`}{" "}
+        {s.evenSplit ? `${host} covered the bill for everyone.` : `${host} covered the bill.`}{" "}
         <button className="link" onClick={() => { try { sessionStorage.removeItem(`tabby:${id}:name`); } catch {} setName(""); setNameInput(""); }}>
           Not {name}?
         </button>
