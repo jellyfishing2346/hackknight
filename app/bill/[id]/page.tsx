@@ -9,6 +9,7 @@ import { useBill } from "@/app/components/useBill";
 import { QR } from "@/app/components/QR";
 import { explorerTx, hasClaimed, latestSignature, money, round2, sameName, split } from "@/lib/split";
 import "@/app/components/features.css";
+import { RemindPanel } from "@/app/components/RemindPanel";
 
 /** The host's shared live screen. The host's device also gets host controls. */
 export default function LiveBill() {
@@ -30,6 +31,7 @@ export default function LiveBill() {
   const blocked = useRef<{ kind: "paid" | "settled" | "test"; name?: string }[]>([]);
   const [shareNote, setShareNote] = useState<string | null>(null);
   const [reminded, setReminded] = useState<Set<string>>(new Set());
+  const [remindFor, setRemindFor] = useState<{ name: string; amount: number } | null>(null);
 
   /** Turn read-aloud on or off, and remember the choice on this device. On unless switched off. */
   function setSound(on: boolean) {
@@ -182,20 +184,6 @@ export default function LiveBill() {
     setTimeout(() => setShareNote(null), 4000);
   }
 
-  /** A friendly nudge with the exact amount and the link to pay. */
-  async function remind(guest: string, amount: number) {
-    const text = `Hi ${guest}! Friendly reminder from ${host}: your share of "${bill.title}" is ${money(amount)}. You can pay it back in one tap here:`;
-    try {
-      const how = await shareText(`Your share of ${bill.title}`, text, joinUrl);
-      if (how !== "cancelled") setReminded((prev) => new Set(prev).add(guest));
-      if (how === "copied") {
-        setShareNote(`Reminder for ${guest} copied. Paste it in a message.`);
-        setTimeout(() => setShareNote(null), 4000);
-      }
-    } catch {
-      setShareNote("Couldn't copy the reminder.");
-    }
-  }
   const host = bill.host_name;
   const isHostDevice = !!hostToken;
   // Host controls lock once settled, and anything that changes guests' shares locks once someone pays.
@@ -432,7 +420,7 @@ export default function LiveBill() {
                         {isHostDevice && g.owed > 0 && (
                           <button
                             className={`remind-btn${reminded.has(g.name) ? " sent" : ""}`}
-                            onClick={() => remind(g.name, round2(g.owed - g.paid))}
+                            onClick={() => setRemindFor({ name: g.name, amount: round2(g.owed - g.paid) })}
                           >
                             {reminded.has(g.name) ? "Reminded ✓" : "Remind"}
                           </button>
@@ -446,6 +434,18 @@ export default function LiveBill() {
           </div>
         </section>
       </div>
+      {remindFor && (
+        <RemindPanel
+          billId={id}
+          guest={remindFor.name}
+          amount={remindFor.amount}
+          host={host}
+          title={bill.title}
+          joinUrl={joinUrl}
+          onSent={() => setReminded((prev) => new Set(prev).add(remindFor.name))}
+          onClose={() => setRemindFor(null)}
+        />
+      )}
     </main>
   );
 }

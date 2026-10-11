@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import { loadBill } from "@/lib/bills";
 import { hasClaimed, money, sameName } from "@/lib/split";
+import { rateLimit } from "@/lib/ratelimit";
+import { aiIsBusy } from "@/lib/ai";
 
 export const maxDuration = 30;
 
@@ -28,6 +30,8 @@ const schema = {
 
 /** "Tell Tabby what you had": match a guest's words to the bill's items. The guest confirms before anything is claimed. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const limited = rateLimit(req, "assist", 12);
+  if (limited) return limited;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY is not set." }, { status: 500 });
 
@@ -69,6 +73,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ reply: (out.reply ?? "").trim(), matches });
   } catch (err) {
     console.error("Guest assist failed:", err);
+    if (aiIsBusy(err)) {
+      return NextResponse.json({ error: "Tabby's AI is busy right now. Just tap your items on the receipt below." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Tabby couldn't work that out just now. Try again, or tap your items." }, { status: 502 });
   }
 }

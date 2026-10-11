@@ -12,7 +12,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: prepared.status });
 
   try {
-    const transaction = await buildTransfer(account, prepared.recipient, prepared.amount, prepared.payment.reference);
+    const transaction = await buildTransfer(account, prepared.recipient, prepared.amount, prepared.payment.reference, prepared.memo);
     return NextResponse.json({ transaction, amount: prepared.amount });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });

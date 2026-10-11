@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { preparePayment } from "@/lib/payments";
 import { payInstantly } from "@/lib/transfer";
+import { rateLimit } from "@/lib/ratelimit";
 
 export const maxDuration = 30;
 
 /** One-tap payment: no wallet needed. Sends a real devnet transaction for this person's share. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const limited = rateLimit(req, "instant", 6);
+  if (limited) return limited;
   const { id } = await params;
   const { name } = (await req.json()) as { name?: string };
 
@@ -13,7 +16,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: prepared.status });
 
   try {
-    const signature = await payInstantly(prepared.recipient, prepared.amount, prepared.payment.reference);
+    const signature = await payInstantly(prepared.recipient, prepared.amount, prepared.payment.reference, prepared.memo);
     return NextResponse.json({ signature });
   } catch (err) {
     console.error("Instant payment failed:", err);

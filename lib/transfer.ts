@@ -1,5 +1,5 @@
 import "server-only";
-import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createMintToInstruction,
@@ -8,6 +8,16 @@ import {
 } from "@solana/spl-token";
 
 const DECIMALS = 6;
+const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+/**
+ * A readable note stored on-chain with the payment ("Tabby: Ana paid Sam back · Ski trip").
+ * It goes BEFORE the transfer: Solana Pay's validateTransfer treats the last instruction as
+ * the transfer and ignores earlier ones unless asked to check a memo.
+ */
+function memoInstruction(text: string) {
+  return new TransactionInstruction({ programId: MEMO_PROGRAM, keys: [], data: Buffer.from(text, "utf8") });
+}
 
 export function connection() {
   return new Connection(process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com", "confirmed");
@@ -19,7 +29,7 @@ export function connection() {
  * Shaped the way Solana Pay's validateTransfer expects: the transfer is the last instruction
  * and the reference is the extra account after the transfer's own accounts.
  */
-export async function buildTransfer(payerAddress: string, recipient: string, amount: number, reference: string) {
+export async function buildTransfer(payerAddress: string, recipient: string, amount: number, reference: string, memo?: string) {
   const payer = new PublicKey(payerAddress);
   const merchant = new PublicKey(recipient);
   const mint = new PublicKey(process.env.SPLIT_TOKEN_MINT!);
@@ -49,6 +59,7 @@ export async function buildTransfer(payerAddress: string, recipient: string, amo
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
   const tx = new Transaction({ feePayer: payer, blockhash, lastValidBlockHeight }).add(
     createAssociatedTokenAccountIdempotentInstruction(payer, to, merchant, mint),
+    ...(memo ? [memoInstruction(memo)] : []),
     transfer,
   );
   return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64");
@@ -68,7 +79,7 @@ function adminKeypair() {
  * tagged with the payment reference. The transfer is last, so the usual
  * validateTransfer check verifies it like any other payment.
  */
-export async function payInstantly(recipient: string, amount: number, reference: string) {
+export async function payInstantly(recipient: string, amount: number, reference: string, memo?: string) {
   const admin = adminKeypair();
   const payer = Keypair.generate();
   const merchant = new PublicKey(recipient);
@@ -87,6 +98,7 @@ export async function payInstantly(recipient: string, amount: number, reference:
     createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, from, payer.publicKey, mint),
     createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, to, merchant, mint),
     createMintToInstruction(mint, from, admin.publicKey, units),
+    ...(memo ? [memoInstruction(memo)] : []),
     transfer,
   );
   tx.sign(admin, payer);

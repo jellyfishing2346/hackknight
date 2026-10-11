@@ -6,7 +6,7 @@ import { newReference } from "./solana";
 import type { Payment } from "./types";
 
 type Prepared =
-  | { ok: true; payment: Payment; amount: number; recipient: string; hostName: string }
+  | { ok: true; payment: Payment; amount: number; recipient: string; hostName: string; memo: string }
   | { ok: false; status: number; error: string };
 
 /** Work out what this person still owes the host and create (or reuse) a pending payment for it. */
@@ -32,10 +32,12 @@ export async function preparePayment(billId: string, name: string): Promise<Prep
 
   const recipient = recipientFor(state.bill);
   const hostName = state.bill.host_name;
+  // A readable note stored on-chain with the payment, visible on Solana Explorer.
+  const memo = `Tabby: ${name.trim()} paid ${hostName} back · ${state.bill.title}`.slice(0, 120);
 
   // Reuse an open request for the same amount so a double-tap doesn't create two.
   const existing = state.payments.find((p) => sameName(p.payer_name, name) && p.status === "pending" && p.amount === amount);
-  if (existing) return { ok: true, payment: existing, amount, recipient, hostName };
+  if (existing) return { ok: true, payment: existing, amount, recipient, hostName, memo };
 
   const { data, error } = await db()
     .from("payments")
@@ -43,5 +45,5 @@ export async function preparePayment(billId: string, name: string): Promise<Prep
     .select("*")
     .single();
   if (error || !data) return { ok: false, status: 500, error: error?.message ?? "Couldn't start payment." };
-  return { ok: true, payment: { ...data, amount: Number(data.amount) } as Payment, amount, recipient, hostName };
+  return { ok: true, payment: { ...data, amount: Number(data.amount) } as Payment, amount, recipient, hostName, memo };
 }

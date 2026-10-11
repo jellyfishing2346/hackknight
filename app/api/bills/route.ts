@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
 import { db } from "@/lib/supabase";
 import { round2 } from "@/lib/split";
+import { rateLimit } from "@/lib/ratelimit";
 
 type Body = {
   title?: string;
@@ -17,6 +18,8 @@ type Body = {
 
 /** Create a bill. Returns a private host token that unlocks the host's controls. */
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "create-bill", 10);
+  if (limited) return limited;
   try {
     return await createBill(req);
   } catch (err) {

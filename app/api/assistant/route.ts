@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
 import { normalizeDraft, type RawDraft } from "@/lib/assistant";
+import { rateLimit } from "@/lib/ratelimit";
+import { aiIsBusy } from "@/lib/ai";
 
 export const maxDuration = 30;
 
@@ -55,6 +57,8 @@ type Msg = { role: "user" | "assistant"; text: string };
 
 /** One chat turn with Tabby AI. Returns a reply plus the bill built from the whole conversation. */
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "assistant", 15);
+  if (limited) return limited;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY is not set." }, { status: 500 });
 
@@ -81,6 +85,12 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Tabby AI failed:", err);
+    if (aiIsBusy(err)) {
+      return NextResponse.json(
+        { error: "Tabby's AI is busy right now. Close this and tap ✏️ Type it in, or try again in a minute." },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: "Tabby AI couldn't answer just now. Try again in a moment." }, { status: 502 });
   }
 }
