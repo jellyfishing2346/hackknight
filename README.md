@@ -142,3 +142,9 @@ scripts/setup-devnet.mjs    Creates and funds the devnet test token
 ## Team
 
 Built by **Faizan Khan**, **Tobiloba Onabanjo**, and **Mohamed Awad**.
+
+## License
+
+Copyright 2026 Faizan Khan, Tobiloba Onabanjo, and Mohamed Awad.
+
+Licensed under the [Apache License, Version 2.0](LICENSE). You may use, modify, and share this code, including commercially, as long as you keep the license and copyright notices and note any changes you make. See [NOTICE](NOTICE) for attribution.
