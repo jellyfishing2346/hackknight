@@ -171,7 +171,7 @@ export default function LiveBill() {
   /** "Send to group chat": for friends who aren't at the table. */
   async function shareBill() {
     const each = s!.evenSplit ? ` It's split evenly, ${money(s!.evenShare ?? 0)} each.` : "";
-    const text = `${host} covered ${bill.title} (${money(s!.total)}).${each} Tap to see your share and pay ${host} back:`;
+    const text = `${host} covered "${bill.title}" (${money(s!.total)}).${each} Tap to see your share and pay ${host} back:`;
     try {
       const how = await shareText(`${bill.title} on Tabby`, text, joinUrl);
       if (how === "copied") setShareNote("Link copied. Paste it in your group chat.");
@@ -184,7 +184,7 @@ export default function LiveBill() {
 
   /** A friendly nudge with the exact amount and the link to pay. */
   async function remind(guest: string, amount: number) {
-    const text = `Hi ${guest}! Friendly reminder from ${host}: your share of ${bill.title} is ${money(amount)}. You can pay it back in one tap here:`;
+    const text = `Hi ${guest}! Friendly reminder from ${host}: your share of "${bill.title}" is ${money(amount)}. You can pay it back in one tap here:`;
     try {
       const how = await shareText(`Your share of ${bill.title}`, text, joinUrl);
       if (how !== "cancelled") setReminded((prev) => new Set(prev).add(guest));

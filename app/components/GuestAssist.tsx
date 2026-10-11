@@ -2,11 +2,11 @@
 import { useState } from "react";
 import { readJson } from "@/app/components/api";
 import { useRecorder } from "@/app/components/useRecorder";
+import { money } from "@/lib/split";
 import "./features.css";
 
 type Match = { id: string; name: string; price: number; alreadyMine: boolean; sharedWith: string[] };
 
-const money = (n: number) => `$${n.toFixed(2)}`;
 
 /**
  * "Tell Tabby what you had": a guest types or says what was theirs, Gemini matches it to the

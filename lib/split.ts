@@ -1,7 +1,9 @@
 import type { Bill, Item, Payment } from "./types";
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
-export const money = (n: number) => `$${n.toFixed(2)}`;
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** "$1,054.70": thousands separators and always two decimals. */
+export const money = (n: number) => usd.format(n);
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 /** Names match regardless of case or stray spaces, so "sam " and "Sam" are one person. */

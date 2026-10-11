@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { readJson } from "@/app/components/api";
 import type { TabbyDraft } from "@/lib/assistant";
+import { money } from "@/lib/split";
 import "./tabby-ai.css";
 
 export type { TabbyDraft };
@@ -11,7 +12,6 @@ type Msg = { role: "user" | "assistant"; text: string };
 const GREETING =
   "Hi! Tell me about the bill and I'll set it up. For example: \"Ski trip with friends, cabin was 420, gear rental 180, lift tickets 320, split evenly between 4 of us. I'm Sam and I paid.\"";
 
-const money = (n: number) => `$${n.toFixed(2)}`;
 const MAX_SECONDS = 60;
 
 /** Pick an audio format this browser can record: webm on Chrome/Firefox, mp4 on Safari. */
