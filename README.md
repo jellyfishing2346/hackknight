@@ -85,7 +85,7 @@ Ignore the "vulnerabilities" warning after install, and don't run `npm audit fix
 | Variable | Where to get it |
 |---|---|
 | `GEMINI_API_KEY` | aistudio.google.com/apikey (use a personal Google account; school accounts often block it) |
-| `GEMINI_MODEL` | Leave as `gemini-2.5-flash` |
+| `GEMINI_MODEL` | Leave as `gemini-3.8-flash` |
 | `SUPABASE_URL` | Supabase → Connect, or Project Settings → Data API → Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → **secret** key (`sb_secret_...`) or legacy **service_role**. Not the publishable or anon key. |
 | `SOLANA_RPC_URL` | helius.dev → switch to **Devnet** → RPCs → copy the URL |
